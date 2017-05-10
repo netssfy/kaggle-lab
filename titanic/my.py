@@ -1,10 +1,11 @@
 #%%
 import pandas as pd
-
-from sklearn.linear_model import LogisticRegression
+from pandas import DataFrame as Matrix
 
 train_dt = pd.read_csv('titanic/train.csv')
 test_dt = pd.read_csv('titanic/test.csv')
+
+test_pid = test_dt['PassengerId']
 
 #0 female 1 male 2 child
 def define_person(info):
@@ -33,66 +34,36 @@ X_train = train_dt.drop('Survived', axis=1)
 Y_train = train_dt['Survived']
 X_test = test_dt.copy()
 
-#logistic regression
-logreg = LogisticRegression()
-logreg.fit(X_train, Y_train)
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
 
-Y_pred = logreg.predict(X_test)
-logreg.score(X_train, Y_train)
+models = ({
+    'logreg': LogisticRegression(),
+    'svc': SVC(),
+    'random forest': RandomForestClassifier(n_estimators=100),
+    'knn': KNeighborsClassifier(n_neighbors=3),
+    'GaussinNB': GaussianNB()
+})
 
-#%%
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.model_selection import validation_curve
-from sklearn.model_selection import learning_curve
-def validation_curve_model(X, Y, model, param_name, parameters, cv, ylim, log=True):
-    train_scores, test_scores = validation_curve(model, X, Y, param_name=param_name, param_range=parameters, cv=cv, scoring='accuracy')
-    train_scores_mean = np.mean(train_scores, axis=1)
-    train_scores_std = np.std(train_scores, axis=1)
-    test_scores_mean = np.mean(test_scores, axis=1)
-    test_scores_std = np.std(test_scores, axis=1)
+bestScore = 0
 
-    plt.figure()
-    plt.title('Validation curve')
-    plt.fill_between(parameters, parameters, train_scores_mean - train_scores_std, train_scores_mean + train_scores_std, alpha=0.1, color='r')
-    plt.fill_between(parameters, parameters, test_scores_mean - test_scores_std, test_scores_mean + test_scores_std, alpha=0.1, color='g')
-    
-    if log == True:
-        plt.semilogx(parameters, train_scores_mean, 'o-', color='r', label='Train score')
-        plt.semilogx(parameters, test_scores_mean, 'o-', color='g', label='Cross validation score')
-    else:
-        plt.plot(parameters, train_scores_mean, 'o-', color='r', label='Train score')
-        plt.plot(parameters, test_scores_mean, 'o-', color='g', label='Cross validation score')
+for name in models:
+    model = models[name]
+    model.fit(X_train, Y_train)
+    Y_pred = model.predict(X_test)
+    score = model.score(X_train, Y_train)
+    print '%s = %f' %(name, score)
 
-    if ylim is not None:
-        plt.ylim(*ylim)
+    if score > bestScore:
+        bestScore = score
+        bestPred = Y_pred
 
-    plt.ylabel('Score')
-    plt.xlabel('Parameter C')
-    plt.legend(loc='best')
+submission = Matrix({
+    'PassengerId': test_pid,
+    'Survived': bestPred
+});
 
-    return plt
-
-def Learning_curve_model(X, Y, model, cv, train_sizes):
-    plt.figure()
-    plt.title('Learning curve')
-    plt.xlabel('Training examples')
-    plt.ylabel('Score')
-
-    train_sizes, train_scores, test_scores = learning_curve(model, X, Y, cv=cv, n_jobs=4, train_sizes=train_sizes)
-
-    train_scores_mean = np.mean(train_scores, axis=1)
-    train_scores_std = np.std(train_scores, axis=1)
-    test_scores_mean = np.mean(test_scores, axis=1)
-    test_scores_std = np.std(test_scores, axis=1)
-
-    plt.grid()
-    plt.fill_between(parameters, parameters, train_scores_mean - train_scores_std, train_scores_mean + train_scores_std, alpha=0.1, color='r')
-    plt.fill_between(parameters, parameters, test_scores_mean - test_scores_std, test_scores_mean + test_scores_std, alpha=0.1, color='g')
-
-    plt.plot(train_sizes, train_scores_mean, 'o-', color="r",label="Training score")
-    plt.plot(train_sizes, test_scores_mean, 'o-', color="g",label="Cross-validation score")
-
-    plt.legend(loc='best')
-    return plt
-
+submission.to_csv('titanic/titanic.csv', index=False)
