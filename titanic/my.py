@@ -1,4 +1,5 @@
 #%%
+import numpy as np
 import pandas as pd
 from pandas import DataFrame as Matrix
 
@@ -55,15 +56,50 @@ for name in models:
     model.fit(X_train, Y_train)
     Y_pred = model.predict(X_test)
     score = model.score(X_train, Y_train)
-    print '%s = %f' %(name, score)
+    print('%s = %f'%(name, score))
 
     if score > bestScore:
         bestScore = score
         bestPred = Y_pred
 
+#%%
+#use cv
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
+
+bestScore = 0
+bestModel = None
+for name in models:
+    model = models[name]
+    scores = cross_val_score(model, X_train, Y_train, cv=3, scoring='f1')
+    mean = scores.mean()
+    std = scores.std()
+    print('mean = %0.2f, std = %0.2f'%(mean, std))
+
+    if mean > bestScore:
+        bestScore = mean
+        bestModel = name
+
+print('best model = %s, score = %0.2f'%(bestModel, bestScore))
+
+#%%
+#plot curve
+params = ({
+    'logreg': { 'name': 'C', 'data': [0.01, 0.03, 0.1, 0.3, 1, 3, 10] },
+    'svc': SVC(),
+    'random forest': RandomForestClassifier(n_estimators=100),
+    'knn': KNeighborsClassifier(n_neighbors=3),
+    'GaussinNB': GaussianNB()
+})
+from sklearn.model_selection import validation_curve
+print(models['logreg'].get_params())
+tscores, vscores = validation_curve(models['svc'], X_train, Y_train, params['logreg']['name'], params['logreg']['data'])
+print(tscores)
+print(vscores)
+#%%
 submission = Matrix({
     'PassengerId': test_pid,
     'Survived': bestPred
-});
+})
 
 submission.to_csv('titanic/titanic.csv', index=False)
