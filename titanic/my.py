@@ -131,20 +131,19 @@ from sklearn.model_selection import learning_curve
 def plot_learning_curve(title, ticks, t_scores, t_stds, v_scores, v_stds):
     fig = plt.figure()
     plt.title(title)
-    x_axis = range(len(ticks))
-    plt.fill_between(x_axis, t_scores - t_stds, t_scores + t_stds, alpha=0.1, color='r')
-    plt.fill_between(x_axis, v_scores - v_stds, v_scores + v_stds, alpha=0.1, color='g')
-    plt.plot(x_axis, t_scores, 'o-', color='r', label='Training Score')
-    plt.plot(x_axis, v_scores, 'o-', color='g', label='Test Score')
+    plt.fill_between(ticks, t_scores - t_stds, t_scores + t_stds, alpha=0.1, color='r')
+    plt.fill_between(ticks, v_scores - v_stds, v_scores + v_stds, alpha=0.1, color='g')
+    plt.plot(ticks, t_scores, 'o-', color='r', label='Training Score')
+    plt.plot(ticks, v_scores, 'o-', color='g', label='Test Score')
     plt.ylabel('Score')
     plt.xlabel('Ticks')
     plt.legend(loc='best')
     ax = fig.add_subplot(111)
-    for xy in zip(x_axis, t_scores):
-        ax.annotate(str(ticks[xy[0]]), xy=xy)
+    for xy in zip(ticks, t_scores):
+        ax.annotate(str(xy[0]), xy=xy)
     
-    for xy in zip(x_axis, v_scores):
-        ax.annotate(str(ticks[xy[0]]), xy=xy)
+    for xy in zip(ticks, v_scores):
+        ax.annotate(str(xy[0]), xy=xy)
 
 for name in models:
     model = models[name]
