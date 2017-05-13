@@ -84,18 +84,46 @@ print('best model = %s, score = %0.2f'%(bestModel, bestScore))
 
 #%%
 #plot curve
-params = ({
-    'logreg': { 'name': 'C', 'data': [0.01, 0.03, 0.1, 0.3, 1, 3, 10] },
-    'svc': SVC(),
-    'random forest': RandomForestClassifier(n_estimators=100),
-    'knn': KNeighborsClassifier(n_neighbors=3),
-    'GaussinNB': GaussianNB()
+
+paramsDef = ({
+    'logreg': { 'name': 'C', 'data': [1, 3, 10, 30, 100, 300] },
+    'svc': { 'name': 'C', 'data': [1, 3, 10, 30, 100, 300] },
+    'random forest': { 'name': 'min_samples_split', 'data': [0.1, 0.3, 0.9, 2] },
+    'knn': { 'name': 'leaf_size', 'data': [30, 60, 90, 120, 150, 180] },
+    'GaussinNB': { 'name': 'priors', 'data': [None] }
 })
 from sklearn.model_selection import validation_curve
-print(models['logreg'].get_params())
-tscores, vscores = validation_curve(models['svc'], X_train, Y_train, params['logreg']['name'], params['logreg']['data'])
-print(tscores)
-print(vscores)
+import matplotlib.pyplot as plt
+
+def plot_validation_curve(title, params, paramName, t_scores, t_stds, v_scores, v_stds):
+    fig = plt.figure()
+    plt.title(title)
+    x_axis = range(len(params))
+    plt.fill_between(x_axis, t_scores - t_stds, t_scores + t_stds, alpha=0.1, color='r')
+    plt.fill_between(x_axis, v_scores - v_stds, v_scores + v_stds, alpha=0.1, color='g')
+    plt.plot(x_axis, t_scores, 'o-', color='r', label='Training Score')
+    plt.plot(x_axis, v_scores, 'o-', color='g', label='Cross Validation Score')
+    plt.ylabel('Score')
+    plt.xlabel(paramName)
+    plt.legend(loc='best')
+    ax = fig.add_subplot(111)
+    for xy in zip(x_axis, t_scores):
+        ax.annotate(str(params[xy[0]]), xy=xy)
+    
+    for xy in zip(x_axis, v_scores):
+        ax.annotate(str(params[xy[0]]), xy=xy)
+
+for modelName in paramsDef:
+    paramDef = paramsDef[modelName]
+    paramName = paramDef['name']
+    paramData = paramDef['data']
+    tScores, vScores = validation_curve(models[modelName], X_train, Y_train, paramName, paramData)
+    tScoresMean = np.mean(tScores, axis=1)
+    tScoresStd = np.std(tScores, axis=1)
+    vScoresMean = np.mean(vScores, axis=1)
+    vScoresStd = np.std(vScores, axis=1)
+    plot_validation_curve('%s Validation Curve'%modelName, paramData, paramName, tScoresMean, tScoresStd, vScoresMean, vScoresStd)
+
 #%%
 submission = Matrix({
     'PassengerId': test_pid,
