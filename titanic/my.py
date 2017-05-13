@@ -125,6 +125,36 @@ for modelName in paramsDef:
     plot_validation_curve('%s Validation Curve'%modelName, paramData, paramName, tScoresMean, tScoresStd, vScoresMean, vScoresStd)
 
 #%%
+#plot learning curve
+from sklearn.model_selection import learning_curve
+
+def plot_learning_curve(title, ticks, t_scores, t_stds, v_scores, v_stds):
+    fig = plt.figure()
+    plt.title(title)
+    x_axis = range(len(ticks))
+    plt.fill_between(x_axis, t_scores - t_stds, t_scores + t_stds, alpha=0.1, color='r')
+    plt.fill_between(x_axis, v_scores - v_stds, v_scores + v_stds, alpha=0.1, color='g')
+    plt.plot(x_axis, t_scores, 'o-', color='r', label='Training Score')
+    plt.plot(x_axis, v_scores, 'o-', color='g', label='Test Score')
+    plt.ylabel('Score')
+    plt.xlabel('Ticks')
+    plt.legend(loc='best')
+    ax = fig.add_subplot(111)
+    for xy in zip(x_axis, t_scores):
+        ax.annotate(str(ticks[xy[0]]), xy=xy)
+    
+    for xy in zip(x_axis, v_scores):
+        ax.annotate(str(ticks[xy[0]]), xy=xy)
+
+for name in models:
+    model = models[name]
+    tSizes, tScores, vScores = learning_curve(model, X_train, Y_train, train_sizes=np.linspace(0.1, 1.0, 5))
+    tScoresMean = np.mean(tScores, axis=1)
+    tScoresStd = np.std(tScores, axis=1)
+    vScoresMean = np.mean(vScores, axis=1)
+    vScoresStd = np.std(vScores, axis=1)
+    plot_learning_curve('%s Learning Curve'%name, tSizes, tScoresMean, tScoresStd, vScoresMean, vScoresStd)
+#%%
 submission = Matrix({
     'PassengerId': test_pid,
     'Survived': bestPred
