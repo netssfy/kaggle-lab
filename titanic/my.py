@@ -17,10 +17,11 @@ def process_data(data):
 #fill na
     data['Age'] = data['Age'].fillna(int(data['Age'].median()))
     data['Fare'] = data['Fare'].fillna(int(data['Fare'].median()))
+    data['Sex'] = data['Sex'].apply(lambda sex: 0 if sex == 'female' else 1)
 #create new member
-    data['Person'] = data[['Age', 'Sex']].apply(define_person, axis=1)
+    #data['Person'] = data[['Age', 'Sex']].apply(define_person, axis=1)
 #drop columns
-    data = data.drop(['Sex'], axis=1)
+    #data = data.drop(['Sex'], axis=1)
     data = data.drop(['Cabin'], axis=1)
     data = data.drop(['Embarked'], axis=1)
     data = data.drop(['PassengerId'], axis=1)
@@ -42,11 +43,19 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 
 models = ({
-    'logreg': LogisticRegression(),
-    'svc': SVC(),
-    'random forest': RandomForestClassifier(n_estimators=100),
-    'knn': KNeighborsClassifier(n_neighbors=3),
-    'GaussinNB': GaussianNB()
+    # 'logreg': LogisticRegression(),
+    # 'svc': SVC(),
+    'random forest': RandomForestClassifier(),
+    # 'knn': KNeighborsClassifier(n_neighbors=3),
+    # 'GaussinNB': GaussianNB()
+})
+
+paramsDef = ({
+    # 'logreg': { 'name': 'C', 'data': [1, 3, 10, 30, 100, 300] },
+    # 'svc': { 'name': 'C', 'data': [1, 3, 10, 30, 100, 300] },
+    'random forest': { 'name': 'n_estimators', 'data': [10, 20, 50, 100, 200] },
+    # 'knn': { 'name': 'leaf_size', 'data': [30, 60, 90, 120, 150, 180] },
+    # 'GaussinNB': { 'name': 'priors', 'data': [None] }
 })
 
 bestScore = 0
@@ -84,14 +93,6 @@ print('best model = %s, score = %0.2f'%(bestModel, bestScore))
 
 #%%
 #plot curve
-
-paramsDef = ({
-    'logreg': { 'name': 'C', 'data': [1, 3, 10, 30, 100, 300] },
-    'svc': { 'name': 'C', 'data': [1, 3, 10, 30, 100, 300] },
-    'random forest': { 'name': 'min_samples_split', 'data': [0.1, 0.3, 0.9, 2] },
-    'knn': { 'name': 'leaf_size', 'data': [30, 60, 90, 120, 150, 180] },
-    'GaussinNB': { 'name': 'priors', 'data': [None] }
-})
 from sklearn.model_selection import validation_curve
 import matplotlib.pyplot as plt
 
@@ -114,6 +115,7 @@ def plot_validation_curve(title, params, paramName, t_scores, t_stds, v_scores, 
         ax.annotate(str(params[xy[0]]), xy=xy)
 
 for modelName in paramsDef:
+    print modelName
     paramDef = paramsDef[modelName]
     paramName = paramDef['name']
     paramData = paramDef['data']
@@ -128,6 +130,14 @@ for modelName in paramsDef:
 #plot learning curve
 from sklearn.model_selection import learning_curve
 
+models = ({
+    # 'logreg': LogisticRegression(),
+    # 'svc': SVC(),
+    'random forest': RandomForestClassifier(n_estimators=100, criterion='entropy'),
+    # 'knn': KNeighborsClassifier(n_neighbors=3),
+    # 'GaussinNB': GaussianNB()
+})
+
 def plot_learning_curve(title, ticks, t_scores, t_stds, v_scores, v_stds):
     fig = plt.figure()
     plt.title(title)
@@ -140,10 +150,10 @@ def plot_learning_curve(title, ticks, t_scores, t_stds, v_scores, v_stds):
     plt.legend(loc='best')
     ax = fig.add_subplot(111)
     for xy in zip(ticks, t_scores):
-        ax.annotate(str(xy[0]), xy=xy)
+        ax.annotate(str(round(xy[1], 3)), xy=xy)
     
     for xy in zip(ticks, v_scores):
-        ax.annotate(str(xy[0]), xy=xy)
+        ax.annotate(str(round(xy[1], 3)), xy=xy)
 
 for name in models:
     model = models[name]
@@ -154,9 +164,14 @@ for name in models:
     vScoresStd = np.std(vScores, axis=1)
     plot_learning_curve('%s Learning Curve'%name, tSizes, tScoresMean, tScoresStd, vScoresMean, vScoresStd)
 #%%
+model = RandomForestClassifier(n_estimators=100, criterion='entropy')
+model.fit(X_train, Y_train)
+pred = model.predict(X_test)
 submission = Matrix({
     'PassengerId': test_pid,
-    'Survived': bestPred
+    'Survived': pred
 })
 
 submission.to_csv('titanic/titanic.csv', index=False)
+
+pred
