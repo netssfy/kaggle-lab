@@ -1,12 +1,16 @@
 #%%
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from pandas import DataFrame as Matrix
 
 train_dt = pd.read_csv('titanic/train.csv')
 test_dt = pd.read_csv('titanic/test.csv')
 
 test_pid = test_dt['PassengerId']
+
+corrmat = train_dt.corr()
+sns.heatmap(corrmat, vmax=8, square=True)
 
 #0 female 1 male 2 child
 def define_person(info):
@@ -173,5 +177,3 @@ submission = Matrix({
 })
 
 submission.to_csv('titanic/titanic.csv', index=False)
-
-pred
