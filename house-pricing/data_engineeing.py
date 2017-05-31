@@ -10,6 +10,8 @@ from sklearn.model_selection import cross_val_score
 dtTrain = pd.read_csv('house-pricing/data/train.csv')
 dtTrainY = dtTrain['SalePrice']
 dtTrainX = dtTrain.drop(['SalePrice'], axis=1)
+
+dtTestX = pd.read_csv('house-pricing/data/test.csv')
 #check NA nums
 #dtTrain.info()
 #Alley 107
@@ -18,6 +20,18 @@ dtTrainX = dtTrain.drop(['SalePrice'], axis=1)
 #PoolQC 3
 #Fence 290
 #MiscFeature 51
+naFeatures = ['Alley', 'LotFrontage', 'FireplaceQu', 'PoolQC', 'Fence', 'MiscFeature']
+def dropNAFeatures(data, features):
+  data.drop(features, inplace=True, axis=1)
+
+dropNAFeatures(dtTrainX, naFeatures)
+dropNAFeatures(dtTestX, naFeatures)
+
+#画直方图
+sns.distplot(dtTrainY, kde=False, color='b', hist_kws={ 'alpha': 0.9 })
+
+#画关系图
+corr = dtTrainX.select_dtypes(include = ['float64','int64'])
 
 # exclude = ['Id', 'SalePrice']
 # colNames = dtTrain.keys()
@@ -28,7 +42,7 @@ dtTrainX = dtTrain.drop(['SalePrice'], axis=1)
 
 #sns.lmplot('LotFrontage', 'SalePrice', dtTrain)
 
-#dtTrainX.shape
+#%%
 #找出所有number类型
 numberFields = []
 for name in dtTrainX.keys():
