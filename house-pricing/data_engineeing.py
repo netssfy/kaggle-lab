@@ -20,18 +20,41 @@ dtTestX = pd.read_csv('house-pricing/data/test.csv')
 #PoolQC 3
 #Fence 290
 #MiscFeature 51
-naFeatures = ['Alley', 'LotFrontage', 'FireplaceQu', 'PoolQC', 'Fence', 'MiscFeature']
+#id也要移除,所以放这里
+naFeatures = ['Id', 'Alley', 'LotFrontage', 'FireplaceQu', 'PoolQC', 'Fence', 'MiscFeature']
 def dropNAFeatures(data, features):
   data.drop(features, inplace=True, axis=1)
 
+dropNAFeatures(dtTrain, naFeatures)
 dropNAFeatures(dtTrainX, naFeatures)
 dropNAFeatures(dtTestX, naFeatures)
 
 #画直方图
 sns.distplot(dtTrainY, kde=False, color='b', hist_kws={ 'alpha': 0.9 })
 
-#画关系图
-corr = dtTrainX.select_dtypes(include = ['float64','int64'])
+#%%
+#画关系图, 移除Id列
+corr = dtTrain.select_dtypes(include = ['float64','int64']).corr()
+sns.heatmap(corr, vmax=1, square=True)
+
+#%%
+#找出和SalePrice
+sortedSalePriceRelative = corr['SalePrice'].drop('SalePrice').sort_values(ascending=False)
+sspr = sortedSalePriceRelative
+highRelative = sspr[sspr > 0.5]
+#OverallQual,GrLivArea,GarageCars,GarageArea,TotalBsmtSF,1stFlrSF,FullBath
+#TotRmsAbvGrd,YearBuilt,YearRemodAdd
+#hrf = high relative features
+hrf = highRelative.axes[0].tolist()
+
+def selectHRFeatures(data, features):
+  return data[features]
+
+dtTrain = selectHRFeatures(dtTrain, hrf)
+dtTrainX = selectHRFeatures(dtTrainX, hrf)
+dtTestX = selectHRFeatures(dtTestX, hrf)
+
+dtTestX
 
 # exclude = ['Id', 'SalePrice']
 # colNames = dtTrain.keys()
