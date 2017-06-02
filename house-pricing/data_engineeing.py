@@ -100,3 +100,38 @@ result = pd.DataFrame({
   'SalePrice': pred
 })
 result.to_csv('house-pricing/submission/hrf.csv', index=False)
+
+#=================================================================
+#=================================================================
+#%%
+#object类型特征
+dtTrain = pd.read_csv('house-pricing/data/train.csv')
+dtTrainY = dtTrain['SalePrice']
+dtTrainX = dtTrain.drop('SalePrice', axis=1)
+
+qualitative = [f for f in dtTrain.columns if dtTrain.dtypes[f] == 'object']
+
+def encode(frame, feature):
+    ordering = pd.DataFrame()
+    ordering['val'] = frame[feature].unique()
+    ordering.index = ordering.val
+    ordering['spmean'] = frame[[feature, 'SalePrice']].groupby(feature).mean()['SalePrice']
+    ordering = ordering.sort_values('spmean')
+    ordering['ordering'] = range(1, ordering.shape[0]+1)
+    ordering = ordering['ordering'].to_dict()
+    
+    for cat, o in ordering.items():
+        frame.loc[frame[feature] == cat, feature+'_E'] = o
+    
+qual_encoded = []
+for q in qualitative:  
+    encode(dtTrain, q)
+    qual_encoded.append(q+'_E')
+
+dtTrain[qual_encoded]
+# plt.figure(figsize = (12, 6))
+# sns.boxplot(x='Neighborhood', y='SalePrice', data=dtTrain)
+# plt.xticks(rotation=45)
+# plt.figure(figsize = (12, 6))
+# sns.countplot(x='Neighborhood', data=dtTrain)
+# plt.xticks(rotation=45)
