@@ -5,6 +5,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 from sklearn.linear_model import LinearRegression as LR
+from sklearn.linear_model import SGDRegressor as SGD
+from sklearn.linear_model import Lasso as Lasso
+from sklearn.linear_model import ElasticNet as EN
+from sklearn.linear_model import Ridge as RR
+from sklearn.svm import LinearSVR as SVR
+from sklearn.ensemble import RandomForestRegressor as RFR
 from sklearn.model_selection import cross_val_score
 
 dtTrain = pd.read_csv('house-pricing/data/train.csv')
@@ -57,18 +63,38 @@ dtTestX = selectHRFeatures(dtTestX, hrf)
 corr = dtTrain.corr()
 sns.heatmap(corr, vmax=1, square=True)
 
-#交叉验证
+#多模型交叉验证
 #%%
-scores = cross_val_score(LR(), dtTrainX, dtTrainY, cv=3, scoring='mean_squared_error')
+models = {
+  'Linear Regression': LR(),
+  'SGD Regressor': SGD(),
+  'Lasso': Lasso(),
+  'Elastic': EN(),
+  'Ridge Regression': RR(),
+  'Linear SVR': SVR(),
+  'Random Forest Regressor': RFR()
+}
+
+bestScore = 1000000000000
+bestModel = None
+
+for modelName in models:
+  model = models[modelName]
+  scores = cross_val_score(model, dtTrainX, dtTrainY, cv=3, scoring='neg_mean_squared_error')
+  score = np.sqrt(-scores.mean())
+  print('%s rmse scores = %0.3f'%(modelName, score))
+  if score < bestScore:
+    bestScore = score
+    bestModel = model
 
 #%%
 dtTestX['GarageCars'].fillna(dtTestX['GarageCars'].mean(), inplace=True)
 dtTestX['GarageArea'].fillna(dtTestX['GarageArea'].mean(), inplace=True)
 dtTestX['TotalBsmtSF'].fillna(dtTestX['TotalBsmtSF'].mean(), inplace=True)
 
-model = LR()
-model.fit(dtTrainX, dtTrainY)
-pred = model.predict(dtTestX)
+print(type(bestModel))
+bestModel.fit(dtTrainX, dtTrainY)
+pred = bestModel.predict(dtTestX)
 result = pd.DataFrame({ 
   'Id': dtTestId,
   'SalePrice': pred
