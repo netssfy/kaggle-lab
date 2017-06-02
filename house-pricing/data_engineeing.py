@@ -1,4 +1,5 @@
 'data engineering'
+
 #%%
 import numpy as np
 import matplotlib.pyplot as plt
@@ -30,14 +31,16 @@ dtTestId = dtTestX['Id']
 #id也要移除,所以放这里
 naFeatures = ['Id', 'Alley', 'LotFrontage', 'FireplaceQu', 'PoolQC', 'Fence', 'MiscFeature']
 def dropNAFeatures(data, features):
-  data.drop(features, inplace=True, axis=1)
+    data.drop(features, inplace=True, axis=1)
 
 dropNAFeatures(dtTrain, naFeatures)
 dropNAFeatures(dtTrainX, naFeatures)
 dropNAFeatures(dtTestX, naFeatures)
 
 #画直方图
-sns.distplot(dtTrainY, kde=False, color='b', hist_kws={ 'alpha': 0.9 })
+#sns.distplot(dtTrainY, kde=False, color='b', hist_kws={ 'alpha': 0.9 })
+
+dtTrainY = np.log1p(dtTrainY)
 
 #画关系图, 移除Id列
 corr = dtTrain.select_dtypes(include = ['float64','int64']).corr()
@@ -53,39 +56,46 @@ highRelative = sspr[sspr > 0.5]
 hrf = highRelative.axes[0].tolist()
 
 def selectHRFeatures(data, features):
-  return data[features]
+    return data[features]
 
 dtTrain = selectHRFeatures(dtTrain, hrf)
 dtTrainX = selectHRFeatures(dtTrainX, hrf)
 dtTestX = selectHRFeatures(dtTestX, hrf)
 
-#更新后的热图
-corr = dtTrain.corr()
-sns.heatmap(corr, vmax=1, square=True)
+def log_transform(data, features):
+    if features is not None:
+        data[features] = np.log1p(data[features].values)
+    else:
+        data = np.log1p(data)
+
+#log化
+log_transform(dtTrainX, hrf)
+log_transform(dtTestX, hrf)
+log_transform(dtTrainY, None)
 
 #多模型交叉验证
 #%%
 models = {
-  'Linear Regression': LR(),
-  'SGD Regressor': SGD(),
-  'Lasso': Lasso(),
-  'Elastic': EN(),
-  'Ridge Regression': RR(),
-  'Linear SVR': SVR(),
-  'Random Forest Regressor': RFR()
+    'Linear Regression': LR(),
+    'SGD Regressor': SGD(),
+    'Lasso': Lasso(),
+    'Elastic': EN(),
+    'Ridge Regression': RR(),
+    'Linear SVR': SVR(),
+    'Random Forest Regressor': RFR()
 }
 
 bestScore = 1000000000000
 bestModel = None
 
 for modelName in models:
-  model = models[modelName]
-  scores = cross_val_score(model, dtTrainX, dtTrainY, cv=3, scoring='neg_mean_squared_error')
-  score = np.sqrt(-scores.mean())
-  print('%s rmse scores = %0.3f'%(modelName, score))
-  if score < bestScore:
-    bestScore = score
-    bestModel = model
+    model = models[modelName]
+    scores = cross_val_score(model, dtTrainX, dtTrainY, cv=3, scoring='neg_mean_squared_error')
+    score = np.sqrt(-scores.mean())
+    print('%s rmse scores = %0.3f'%(modelName, score))
+    if score < bestScore:
+        bestScore = score
+        bestModel = model
 
 #%%
 dtTestX['GarageCars'].fillna(dtTestX['GarageCars'].mean(), inplace=True)
@@ -97,9 +107,9 @@ bestModel.fit(dtTrainX, dtTrainY)
 pred = bestModel.predict(dtTestX)
 result = pd.DataFrame({ 
   'Id': dtTestId,
-  'SalePrice': pred
+  'SalePrice': np.exp(pred) - 1
 })
-result.to_csv('house-pricing/submission/hrf.csv', index=False)
+result.to_csv('house-pricing/submission/hrf_log_transform.csv', index=False)
 
 #=================================================================
 #=================================================================
