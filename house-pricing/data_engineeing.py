@@ -64,10 +64,19 @@ def processQuantitativeFeatures(data):
     log_transform(quanTrainX, hrf)
     return (quanTrainX, hrf)
 
+def processQualitativeFeatures(data):
+    objFeatures = data.select_dtypes(include=['object'])
+    return objFeatures
+
 def selectFeatures(data, features):
     return data[features]
 
 quanHRF, hrf = processQuantitativeFeatures(dtTrain)
+
+#%%
+#定性参数
+processQualitativeFeatures(dtTrainX).columns
+
 #多模型交叉验证
 #%%
 models = {
