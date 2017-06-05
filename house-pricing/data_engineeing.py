@@ -64,10 +64,6 @@ def processQuantitativeFeatures(data):
     log_transform(quanTrainX, hrf)
     return (quanTrainX, hrf)
 
-def processQualitativeFeatures(data):
-    objFeatures = data.select_dtypes(include=['object'])
-    return objFeatures
-
 def selectFeatures(data, features):
     return data[features]
 
@@ -75,7 +71,30 @@ quanHRF, hrf = processQuantitativeFeatures(dtTrain)
 
 #%%
 #定性参数
-processQualitativeFeatures(dtTrainX).columns
+def processQualitativeFeatures(data):
+    objFeatures = data.select_dtypes(include=['object'])
+    cols = objFeatures.columns
+    newCols = []
+    for feature in cols:
+        newCol = encode(data, feature)
+        newCols.append(newCol)
+    
+    return (data[newCols], newCols)
+
+def encode(data, feature):
+    ordering = pd.DataFrame()
+    ordering['val'] = data[feature].unique()
+    ordering.index = ordering.val
+    ordering['spmean'] = data[[feature, 'SalePrice']].groupby(feature).mean()['SalePrice']
+    ordering = ordering.sort_values('spmean')
+    ordering['ordering'] = range(1, ordering.shape[0] + 1)
+    ordering = ordering['ordering'].to_dict()
+    for cat, o in ordering.items():
+        data.loc[data[feature] == cat, feature + '_E'] = o
+
+    return feature + '_E'
+
+qualOBJF, objf = processQualitativeFeatures(dtTrain)
 
 #多模型交叉验证
 #%%
@@ -92,9 +111,14 @@ models = {
 bestScore = 1000000000000
 bestModel = None
 
+dtTrainX[objf] = qualOBJF
+nullrows = dtTrainX.isnull().any(axis=1)
+dtTrainX = dtTrainX.loc[nullrows.index]
+dtTrainY = dtTrainY.loc[nullrows.index]
+
 for modelName in models:
     model = models[modelName]
-    scores = cross_val_score(model, quanHRF, dtTrainY, cv=3, scoring='neg_mean_squared_error')
+    scores = cross_val_score(model, dtTrainX[hrf + objf], dtTrainY, cv=3, scoring='neg_mean_squared_error')
     score = np.sqrt(-scores.mean())
     print('%s rmse scores = %0.3f'%(modelName, score))
     if score < bestScore:
@@ -129,18 +153,6 @@ dtTrainX = dtTrain.drop('SalePrice', axis=1)
 qualitative = [f for f in dtTrain.columns if dtTrain.dtypes[f] == 'object']
 qualitative
 #%%
-def encode(frame, feature):
-    ordering = pd.DataFrame()
-    ordering['val'] = frame[feature].unique()
-    ordering.index = ordering.val
-    ordering['spmean'] = frame[[feature, 'SalePrice']].groupby(feature).mean()['SalePrice']
-    ordering = ordering.sort_values('spmean')
-    ordering['ordering'] = range(1, ordering.shape[0]+1)
-    ordering = ordering['ordering'].to_dict()
-    
-    for cat, o in ordering.items():
-        frame.loc[frame[feature] == cat, feature+'_E'] = o
-    
 qual_encoded = []
 for q in qualitative:  
     encode(dtTrain, q)
