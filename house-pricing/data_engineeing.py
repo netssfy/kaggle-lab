@@ -37,30 +37,12 @@ dropNAFeatures(dtTrain, naFeatures)
 dropNAFeatures(dtTrainX, naFeatures)
 dropNAFeatures(dtTestX, naFeatures)
 
-#画直方图
-#sns.distplot(dtTrainY, kde=False, color='b', hist_kws={ 'alpha': 0.9 })
-
-dtTrainY = np.log1p(dtTrainY)
-
-#画关系图, 移除Id列
-corr = dtTrain.select_dtypes(include = ['float64','int64']).corr()
-sns.heatmap(corr, vmax=1, square=True)
-
-#找出和SalePrice
-sortedSalePriceRelative = corr['SalePrice'].drop('SalePrice').sort_values(ascending=False)
-sspr = sortedSalePriceRelative
-highRelative = sspr[sspr > 0.5]
-#OverallQual,GrLivArea,GarageCars,GarageArea,TotalBsmtSF,1stFlrSF,FullBath
-#TotRmsAbvGrd,YearBuilt,YearRemodAdd
-#hrf = high relative features
-hrf = highRelative.axes[0].tolist()
-
-def selectHRFeatures(data, features):
-    return data[features]
-
-dtTrain = selectHRFeatures(dtTrain, hrf)
-dtTrainX = selectHRFeatures(dtTrainX, hrf)
-dtTestX = selectHRFeatures(dtTestX, hrf)
+def plot(dataX, dataY):
+    #画直方图
+    sns.distplot(dataY, kde=False, color='b', hist_kws={ 'alpha': 0.9 })
+    #画关系图, 移除Id列
+    corr = dataX.select_dtypes(include = ['float64','int64']).corr()
+    sns.heatmap(corr, vmax=1, square=True)
 
 def log_transform(data, features):
     if features is not None:
@@ -68,11 +50,24 @@ def log_transform(data, features):
     else:
         data = np.log1p(data)
 
-#log化
-log_transform(dtTrainX, hrf)
-log_transform(dtTestX, hrf)
-log_transform(dtTrainY, None)
+def processQuantitativeFeatures(data):
+    corr = data.select_dtypes(include = ['float64','int64']).corr()
+    #找出和SalePrice相关性高的特征
+    sortedSalePriceRelative = corr['SalePrice'].drop('SalePrice').sort_values(ascending=False)
+    sspr = sortedSalePriceRelative
+    highRelative = sspr[sspr > 0.5]
+    #OverallQual,GrLivArea,GarageCars,GarageArea,TotalBsmtSF,1stFlrSF,FullBath
+    #TotRmsAbvGrd,YearBuilt,YearRemodAdd
+    #hrf = high relative features
+    hrf = highRelative.axes[0].tolist()
+    quanTrainX = selectFeatures(dtTrainX, hrf)
+    log_transform(quanTrainX, hrf)
+    return (quanTrainX, hrf)
 
+def selectFeatures(data, features):
+    return data[features]
+
+quanHRF, hrf = processQuantitativeFeatures(dtTrain)
 #多模型交叉验证
 #%%
 models = {
@@ -90,7 +85,7 @@ bestModel = None
 
 for modelName in models:
     model = models[modelName]
-    scores = cross_val_score(model, dtTrainX, dtTrainY, cv=3, scoring='neg_mean_squared_error')
+    scores = cross_val_score(model, quanHRF, dtTrainY, cv=3, scoring='neg_mean_squared_error')
     score = np.sqrt(-scores.mean())
     print('%s rmse scores = %0.3f'%(modelName, score))
     if score < bestScore:
@@ -102,9 +97,12 @@ dtTestX['GarageCars'].fillna(dtTestX['GarageCars'].mean(), inplace=True)
 dtTestX['GarageArea'].fillna(dtTestX['GarageArea'].mean(), inplace=True)
 dtTestX['TotalBsmtSF'].fillna(dtTestX['TotalBsmtSF'].mean(), inplace=True)
 
+quanTestX = selectFeatures(dtTestX, hrf)
+log_transform(quanTestX, hrf)
+
 print(type(bestModel))
-bestModel.fit(dtTrainX, dtTrainY)
-pred = bestModel.predict(dtTestX)
+bestModel.fit(quanHRF, dtTrainY)
+pred = bestModel.predict(quanTestX)
 result = pd.DataFrame({ 
   'Id': dtTestId,
   'SalePrice': np.exp(pred) - 1
@@ -120,7 +118,8 @@ dtTrainY = dtTrain['SalePrice']
 dtTrainX = dtTrain.drop('SalePrice', axis=1)
 
 qualitative = [f for f in dtTrain.columns if dtTrain.dtypes[f] == 'object']
-
+qualitative
+#%%
 def encode(frame, feature):
     ordering = pd.DataFrame()
     ordering['val'] = frame[feature].unique()
