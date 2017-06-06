@@ -19,19 +19,6 @@ dtTrainY = dtTrain['SalePrice']
 dtTrainX = dtTrain.drop(['SalePrice'], axis=1)
 
 def selectBestModelAndTrain(data, dataY):
-    corr = data.select_dtypes(include = ['float64','int64']).corr()
-    #找出和SalePrice相关性高的特征
-    sortedSalePriceRelative = corr['SalePrice'].drop('SalePrice').sort_values(ascending=False)
-    sspr = sortedSalePriceRelative
- 
-    highRelative = sspr[sspr > 0.5]
-    #OverallQual,GrLivArea,GarageCars,GarageArea,TotalBsmtSF,1stFlrSF,FullBath
-    #TotRmsAbvGrd,YearBuilt,YearRemodAdd
-    #hrf = high relative features
-    hrf = highRelative.axes[0].tolist()
-    log_transform(data, hrf)
-    dataY = log_transform(dataY, None)
-    
     #处理定性参数
     mapping = {}
     objFeatures = data.select_dtypes(include=['object'])
@@ -40,6 +27,19 @@ def selectBestModelAndTrain(data, dataY):
     for feature in cols:
         newCol = encode(data, feature, mapping)
         objf.append(newCol)
+
+    corr = data.select_dtypes(include = ['float64','int64']).corr()
+    #找出和SalePrice相关性高的特征
+    sortedSalePriceRelative = corr['SalePrice'].drop('SalePrice').sort_values(ascending=False)
+    sspr = sortedSalePriceRelative
+
+    highRelative = sspr[sspr > 0.3]
+    #OverallQual,GrLivArea,GarageCars,GarageArea,TotalBsmtSF,1stFlrSF,FullBath
+    #TotRmsAbvGrd,YearBuilt,YearRemodAdd
+    #hrf = high relative features
+    hrf = highRelative.axes[0].tolist()
+    log_transform(data, hrf)
+    dataY = log_transform(dataY, None)
     
     #多模型交叉验证
     models = {
@@ -61,14 +61,15 @@ def selectBestModelAndTrain(data, dataY):
     
     for modelName in models:
         model = models[modelName]
-        scores = cross_val_score(model, data[hrf + objf], dataY, cv=3, scoring='neg_mean_squared_error')
+        scores = cross_val_score(model, data[hrf], dataY, cv=3, scoring='neg_mean_squared_error')
         score = np.sqrt(-scores.mean())
         print('%s rmse scores = %0.3f'%(modelName, score))
         if score < bestScore:
             bestScore = score
             bestModel = model
     
-    bestModel.fit(data[hrf + objf], dataY)
+    bestModel = RR()
+    bestModel.fit(data[hrf], dataY)
     return (bestModel, mapping, hrf, objf)
 
 def dropNAFeatures(data, features):
@@ -109,7 +110,7 @@ dropNAFeatures(dtTrain, naFeatures)
 
 model, mapping, hrf, objf = selectBestModelAndTrain(dtTrain, dtTrainY)
 
-#%%
+print(type(model))
 dtTestX = pd.read_csv('house-pricing/data/test.csv')
 dtTestId = dtTestX['Id']
 dropNAFeatures(dtTestX, naFeatures)
@@ -126,13 +127,12 @@ for feature in objf:
         dtTestX.loc[dtTestX[orif] == key, feature] = value
 
 dtTestX = dtTestX.fillna(0.0)
-dtTestX[objf].isnull().sum()
 log_transform(dtTestX, hrf)
 
-pred = model.predict(dtTestX[hrf + objf])
+pred = model.predict(dtTestX[hrf])
 result = pd.DataFrame({ 
   'Id': dtTestId,
   'SalePrice': np.exp(pred) - 1
 })
 
-result.to_csv('house-pricing/submission/hrf_objf_log_transform.csv', index=False)
+result.to_csv('house-pricing/submission/hrf_objf_log_transform_rr_0_3.csv', index=False)
