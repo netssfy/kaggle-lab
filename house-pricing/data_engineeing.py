@@ -18,25 +18,61 @@ dtTrain = pd.read_csv('house-pricing/data/train.csv')
 dtTrainY = dtTrain['SalePrice']
 dtTrainX = dtTrain.drop(['SalePrice'], axis=1)
 
-dtTestX = pd.read_csv('house-pricing/data/test.csv')
+def selectBestModelAndTrain(data, dataY):
+    corr = data.select_dtypes(include = ['float64','int64']).corr()
+    #找出和SalePrice相关性高的特征
+    sortedSalePriceRelative = corr['SalePrice'].drop('SalePrice').sort_values(ascending=False)
+    sspr = sortedSalePriceRelative
+ 
+    highRelative = sspr[sspr > 0.5]
+    #OverallQual,GrLivArea,GarageCars,GarageArea,TotalBsmtSF,1stFlrSF,FullBath
+    #TotRmsAbvGrd,YearBuilt,YearRemodAdd
+    #hrf = high relative features
+    hrf = highRelative.axes[0].tolist()
+    log_transform(data, hrf)
+    dataY = log_transform(dataY, None)
+    
+    #处理定性参数
+    mapping = {}
+    objFeatures = data.select_dtypes(include=['object'])
+    cols = objFeatures.columns
+    objf = []
+    for feature in cols:
+        newCol = encode(data, feature, mapping)
+        objf.append(newCol)
+    
+    #多模型交叉验证
+    models = {
+        'Linear Regression': LR(),
+        'SGD Regressor': SGD(),
+        'Lasso': Lasso(),
+        'Elastic': EN(),
+        'Ridge Regression': RR(),
+        'Linear SVR': SVR(),
+        'Random Forest Regressor': RFR()
+    }
 
-dtTestId = dtTestX['Id']
-#check NA nums
-#dtTrain.info()
-#Alley 107
-#LotFrontage 1232
-#FireplaceQu 729
-#PoolQC 3
-#Fence 290
-#MiscFeature 51
-#id也要移除,所以放这里
-naFeatures = ['Id', 'Alley', 'LotFrontage', 'FireplaceQu', 'PoolQC', 'Fence', 'MiscFeature']
+    bestScore = 1000000000000
+    bestModel = None
+
+    nullrows = data.isnull().any(axis=1)
+    data = data[nullrows == False]
+    dataY = dataY[nullrows == False]
+    
+    for modelName in models:
+        model = models[modelName]
+        scores = cross_val_score(model, data[hrf + objf], dataY, cv=3, scoring='neg_mean_squared_error')
+        score = np.sqrt(-scores.mean())
+        print('%s rmse scores = %0.3f'%(modelName, score))
+        if score < bestScore:
+            bestScore = score
+            bestModel = model
+    
+    bestModel.fit(data[hrf + objf], dataY)
+    return (bestModel, mapping, hrf, objf)
+
 def dropNAFeatures(data, features):
     data.drop(features, inplace=True, axis=1)
-
-dropNAFeatures(dtTrain, naFeatures)
-dropNAFeatures(dtTrainX, naFeatures)
-dropNAFeatures(dtTestX, naFeatures)
 
 def plot(dataX, dataY):
     #画直方图
@@ -50,39 +86,10 @@ def log_transform(data, features):
         data[features] = np.log1p(data[features].values)
     else:
         data = np.log1p(data)
-
-def processQuantitativeFeatures(data):
-    corr = data.select_dtypes(include = ['float64','int64']).corr()
-    #找出和SalePrice相关性高的特征
-    sortedSalePriceRelative = corr['SalePrice'].drop('SalePrice').sort_values(ascending=False)
-    sspr = sortedSalePriceRelative
-    highRelative = sspr[sspr > 0.5]
-    #OverallQual,GrLivArea,GarageCars,GarageArea,TotalBsmtSF,1stFlrSF,FullBath
-    #TotRmsAbvGrd,YearBuilt,YearRemodAdd
-    #hrf = high relative features
-    hrf = highRelative.axes[0].tolist()
-    quanTrainX = selectFeatures(dtTrainX, hrf)
-    log_transform(quanTrainX, hrf)
-    return (quanTrainX, hrf)
-
-def selectFeatures(data, features):
-    return data[features]
-
-quanHRF, hrf = processQuantitativeFeatures(dtTrain)
-
-mapping = {}
-#定性参数
-def processQualitativeFeatures(data):
-    objFeatures = data.select_dtypes(include=['object'])
-    cols = objFeatures.columns
-    newCols = []
-    for feature in cols:
-        newCol = encode(data, feature)
-        newCols.append(newCol)
     
-    return (data[newCols], newCols)
+    return data
 
-def encode(data, feature):
+def encode(data, feature, mapping):
     ordering = pd.DataFrame()
     ordering['val'] = data[feature].unique()
     ordering.index = ordering.val
@@ -96,57 +103,33 @@ def encode(data, feature):
 
     return feature + '_E'
 
-qualOBJF, objf = processQualitativeFeatures(dtTrain)
 
-#多模型交叉验证
-models = {
-    'Linear Regression': LR(),
-    'SGD Regressor': SGD(),
-    'Lasso': Lasso(),
-    'Elastic': EN(),
-    'Ridge Regression': RR(),
-    'Linear SVR': SVR(),
-    'Random Forest Regressor': RFR()
-}
+naFeatures = ['Id', 'Alley', 'LotFrontage', 'FireplaceQu', 'PoolQC', 'Fence', 'MiscFeature']
+dropNAFeatures(dtTrain, naFeatures)
 
-bestScore = 1000000000000
-bestModel = None
-
-dtTrainX[objf] = qualOBJF
-nullrows = dtTrainX.isnull().any(axis=1)
-dtTrainX = dtTrainX[nullrows == False]
-dtTrainY = dtTrainY[nullrows == False]
-
-for modelName in models:
-    model = models[modelName]
-    scores = cross_val_score(model, dtTrainX[hrf + objf], dtTrainY, cv=3, scoring='neg_mean_squared_error')
-    score = np.sqrt(-scores.mean())
-    print('%s rmse scores = %0.3f'%(modelName, score))
-    if score < bestScore:
-        bestScore = score
-        bestModel = model
+model, mapping, hrf, objf = selectBestModelAndTrain(dtTrain, dtTrainY)
 
 #%%
+dtTestX = pd.read_csv('house-pricing/data/test.csv')
+dtTestId = dtTestX['Id']
+dropNAFeatures(dtTestX, naFeatures)
+
 dtTestX['GarageCars'].fillna(dtTestX['GarageCars'].mean(), inplace=True)
 dtTestX['GarageArea'].fillna(dtTestX['GarageArea'].mean(), inplace=True)
 dtTestX['TotalBsmtSF'].fillna(dtTestX['TotalBsmtSF'].mean(), inplace=True)
 
-print(type(bestModel))
-bestModel.fit(dtTrainX[hrf + objf], dtTrainY)
+#转换定性特征
+for feature in objf:
+    orif = feature[:-2]
+    m = mapping[orif]
+    for key, value in m.items():
+        dtTestX.loc[dtTestX[orif] == key, feature] = value
 
+dtTestX = dtTestX.fillna(0.0)
+dtTestX[objf].isnull().sum()
 log_transform(dtTestX, hrf)
-#给test数据的定性特性做转换
-objFeatures = dtTestX.select_dtypes(include=['object'])
-cols = objFeatures.columns
-newCols = []
-for feature in cols:
-    m = mapping[feature]
-    for cat, o in m.items():
-        dtTestX.loc[dtTestX[feature] == cat, feature + '_E'] = o
 
-dtTestX = dtTestX.fillna(1.0)
-pred = bestModel.predict(dtTestX[hrf + objf])
-
+pred = model.predict(dtTestX[hrf + objf])
 result = pd.DataFrame({ 
   'Id': dtTestId,
   'SalePrice': np.exp(pred) - 1
