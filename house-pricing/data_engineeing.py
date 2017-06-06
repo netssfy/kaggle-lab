@@ -19,6 +19,7 @@ dtTrainY = dtTrain['SalePrice']
 dtTrainX = dtTrain.drop(['SalePrice'], axis=1)
 
 dtTestX = pd.read_csv('house-pricing/data/test.csv')
+
 dtTestId = dtTestX['Id']
 #check NA nums
 #dtTrain.info()
@@ -69,7 +70,7 @@ def selectFeatures(data, features):
 
 quanHRF, hrf = processQuantitativeFeatures(dtTrain)
 
-#%%
+mapping = {}
 #定性参数
 def processQualitativeFeatures(data):
     objFeatures = data.select_dtypes(include=['object'])
@@ -89,6 +90,7 @@ def encode(data, feature):
     ordering = ordering.sort_values('spmean')
     ordering['ordering'] = range(1, ordering.shape[0] + 1)
     ordering = ordering['ordering'].to_dict()
+    mapping[feature] = ordering
     for cat, o in ordering.items():
         data.loc[data[feature] == cat, feature + '_E'] = o
 
@@ -97,7 +99,6 @@ def encode(data, feature):
 qualOBJF, objf = processQualitativeFeatures(dtTrain)
 
 #多模型交叉验证
-#%%
 models = {
     'Linear Regression': LR(),
     'SGD Regressor': SGD(),
@@ -113,8 +114,8 @@ bestModel = None
 
 dtTrainX[objf] = qualOBJF
 nullrows = dtTrainX.isnull().any(axis=1)
-dtTrainX = dtTrainX.loc[nullrows.index]
-dtTrainY = dtTrainY.loc[nullrows.index]
+dtTrainX = dtTrainX[nullrows == False]
+dtTrainY = dtTrainY[nullrows == False]
 
 for modelName in models:
     model = models[modelName]
@@ -130,38 +131,25 @@ dtTestX['GarageCars'].fillna(dtTestX['GarageCars'].mean(), inplace=True)
 dtTestX['GarageArea'].fillna(dtTestX['GarageArea'].mean(), inplace=True)
 dtTestX['TotalBsmtSF'].fillna(dtTestX['TotalBsmtSF'].mean(), inplace=True)
 
-quanTestX = selectFeatures(dtTestX, hrf)
-log_transform(quanTestX, hrf)
-
 print(type(bestModel))
-bestModel.fit(quanHRF, dtTrainY)
-pred = bestModel.predict(quanTestX)
+bestModel.fit(dtTrainX[hrf + objf], dtTrainY)
+
+log_transform(dtTestX, hrf)
+#给test数据的定性特性做转换
+objFeatures = dtTestX.select_dtypes(include=['object'])
+cols = objFeatures.columns
+newCols = []
+for feature in cols:
+    m = mapping[feature]
+    for cat, o in m.items():
+        dtTestX.loc[dtTestX[feature] == cat, feature + '_E'] = o
+
+dtTestX = dtTestX.fillna(1.0)
+pred = bestModel.predict(dtTestX[hrf + objf])
+
 result = pd.DataFrame({ 
   'Id': dtTestId,
   'SalePrice': np.exp(pred) - 1
 })
-result.to_csv('house-pricing/submission/hrf_log_transform.csv', index=False)
 
-#=================================================================
-#=================================================================
-#%%
-#object类型特征
-dtTrain = pd.read_csv('house-pricing/data/train.csv')
-dtTrainY = dtTrain['SalePrice']
-dtTrainX = dtTrain.drop('SalePrice', axis=1)
-
-qualitative = [f for f in dtTrain.columns if dtTrain.dtypes[f] == 'object']
-qualitative
-#%%
-qual_encoded = []
-for q in qualitative:  
-    encode(dtTrain, q)
-    qual_encoded.append(q+'_E')
-
-dtTrain[qual_encoded]
-# plt.figure(figsize = (12, 6))
-# sns.boxplot(x='Neighborhood', y='SalePrice', data=dtTrain)
-# plt.xticks(rotation=45)
-# plt.figure(figsize = (12, 6))
-# sns.countplot(x='Neighborhood', data=dtTrain)
-# plt.xticks(rotation=45)
+result.to_csv('house-pricing/submission/hrf_objf_log_transform.csv', index=False)
