@@ -67,7 +67,7 @@ train = pd.get_dummies(train)
 imputer = Imputer(strategy='median')
 train.loc[:, :] = imputer.fit_transform(train.loc[:, :])
 
-trainX = train.drop('SalePrice', axis=1)
+trainX = train.drop(['SalePrice', 'Id'], axis=1)
 trainY = train['SalePrice']
 
 #log transfrom of the skewed features
@@ -79,39 +79,47 @@ trainY = np.log1p(trainY)
 
 stdScaler = StandardScaler()
 trainX.loc[:, :] = stdScaler.fit_transform(trainX.loc[:, :])
-trainY.loc[:] = stdScaler.fit_transform(trainY.loc[:])
 
 tX, vX, tY, vY = train_test_split(trainX, trainY, test_size=0.3, random_state=0)
 
 model = RidgeCV(alphas=[100, 150, 200, 500, 600, 700], scoring='neg_mean_squared_error')
 model.fit(trainX, trainY)
 
-print(model.alpha_)
-a = model.alpha_
+print('best alpha:', model.alpha_)
 
 model = RidgeCV(alphas=[a * .5, a * .55, a * .6, a * .65, a * .7, a * .75, a * .8,
                         a * .85, a * .9, a * .95, a * 1, a * 1.05, a * 1.1, a * 1.15,
                         a * 1.2, a * 1.25, a * 1.3, a * 1.35, a * 1.4], scoring='neg_mean_squared_error')
 model.fit(trainX, trainY)
 
-print(model.alpha_)
+print('best alpha:', model.alpha_)
+
 # cross_validation(model, tX, tY, vX, vY)
 
 test = pd.read_csv('house-pricing/data/test.csv')
+testId = test['Id']
+test = test.drop('Id', axis=1)
 test = pd.get_dummies(test)
 test.loc[:, :] = imputer.fit_transform(test.loc[:, :])
 
-print(test.isnull().sum())
-test1, _ = test.align(trainX)
-print(trainX.shape)
-print(test1.shape)
-print(test1.isnull().sum())
+missF = None
+if trainX.columns.size > test.columns.size:
+    temp = trainX.drop(test.columns, axis=1)
+    missF = temp.columns
 
-# skewness = test.apply(lambda x: skew(x))
-# skewness = skewness[abs(skewness) > 0.5]
-# skewnessF = skewness.index
-# test[skewnessF] = np.log1p(test[skewnessF])
-# test.loc[:, :] = stdScaler.fit_transform(test.loc[:, :])
+for f in missF:
+    test[f] = 0
 
-# pred = model.predict(test)
-# pred
+skewness = test.apply(lambda x: skew(x))
+skewness = skewness[abs(skewness) > 0.5]
+skewnessF = skewness.index
+test[skewnessF] = np.log1p(test[skewnessF])
+test.loc[:, :] = stdScaler.fit_transform(test.loc[:, :])
+
+pred = model.predict(test)
+result = pd.DataFrame({
+    'Id': testId,
+    'SalePrice': np.exp(pred) - 1
+})
+
+result.to_csv('house-pricing/submission/result2.csv', index=False)
