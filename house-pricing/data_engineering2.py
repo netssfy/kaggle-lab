@@ -8,6 +8,7 @@ from sklearn.model_selection import cross_val_score, train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import Imputer
 from sklearn.linear_model import RidgeCV
+from sklearn.linear_model import LassoCV
 from scipy.stats import skew
 
 pd.set_option('display.float_format', lambda x: '%.6f'%x)
@@ -59,6 +60,42 @@ def cross_validation(model, tX, tY, vX, vY):
     plt.title('Coefficients in the model')
     plt.show()
 
+def GetRidgeCV(dataX, dataY):
+    print('=' * 10 + 'RidgeCV' + '=' * 10)
+    model = RidgeCV(alphas=[100, 150, 200, 500, 600, 700], scoring='neg_mean_squared_error')
+    model.fit(trainX, trainY)
+
+    print('best alpha:', model.alpha_)
+    a = model.alpha_
+    model = RidgeCV(alphas=[a * .5, a * .55, a * .6, a * .65, a * .7, a * .75, a * .8,
+                            a * .85, a * .9, a * .95, a * 1, a * 1.05, a * 1.1, a * 1.15,
+                            a * 1.2, a * 1.25, a * 1.3, a * 1.35, a * 1.4], scoring='neg_mean_squared_error')
+    model.fit(trainX, trainY)
+
+    print('best alpha:', model.alpha_)
+    print('picked ' + str(sum(model.coef_ != 0)) + ' features and eliminated the other ' + str(sum(model.coef_ == 0)) + ' features')
+
+    print('=' * 10 + 'RidgeCV' + '=' * 10)
+    return model
+
+def GetLassoCV(dataX, dataY):
+    print('=' * 10 + 'LassoCV' + '=' * 10)
+    alphas = [0.0001, 0.0003, 0.0006, 0.001, 0.003, 0.006, 0.01, 0.03, 0.06, 0.1, 0.3, 0.6, 1]
+    model = LassoCV(alphas = alphas, max_iter=1000)
+    model.fit(dataX, dataY)
+
+    print('best alpha=%f converged at iter=%d'%(model.alpha_, model.n_iter_))
+    a = model.alpha_
+    model = LassoCV(alphas=[a * .5, a * .55, a * .6, a * .65, a * .7, a * .75, a * .8,
+                            a * .85, a * .9, a * .95, a * 1, a * 1.05, a * 1.1, a * 1.15,
+                            a * 1.2, a * 1.25, a * 1.3, a * 1.35, a * 1.4], max_iter=1000)
+    model.fit(trainX, trainY)
+    print('best alpha=%f converged at iter=%d'%(model.alpha_, model.n_iter_))
+    print('picked ' + str(sum(model.coef_ != 0)) + ' features and eliminated the other ' + str(sum(model.coef_ == 0)) + ' features')
+    print('score = %f'%model.score(dataX, dataY))
+    
+    print('=' * 10 + 'LassoCV' + '=' * 10)
+    return model
 #%%
 train = pd.read_csv('house-pricing/data/train.csv')
 #convert categorical
@@ -80,21 +117,9 @@ trainY = np.log1p(trainY)
 stdScaler = StandardScaler()
 trainX.loc[:, :] = stdScaler.fit_transform(trainX.loc[:, :])
 
-tX, vX, tY, vY = train_test_split(trainX, trainY, test_size=0.3, random_state=0)
-
-model = RidgeCV(alphas=[100, 150, 200, 500, 600, 700], scoring='neg_mean_squared_error')
-model.fit(trainX, trainY)
-
-print('best alpha:', model.alpha_)
-
-model = RidgeCV(alphas=[a * .5, a * .55, a * .6, a * .65, a * .7, a * .75, a * .8,
-                        a * .85, a * .9, a * .95, a * 1, a * 1.05, a * 1.1, a * 1.15,
-                        a * 1.2, a * 1.25, a * 1.3, a * 1.35, a * 1.4], scoring='neg_mean_squared_error')
-model.fit(trainX, trainY)
-
-print('best alpha:', model.alpha_)
-
+# tX, vX, tY, vY = train_test_split(trainX, trainY, test_size=0.3, random_state=0)
 # cross_validation(model, tX, tY, vX, vY)
+model = GetLassoCV(trainX, trainY)
 
 test = pd.read_csv('house-pricing/data/test.csv')
 testId = test['Id']
@@ -122,4 +147,4 @@ result = pd.DataFrame({
     'SalePrice': np.exp(pred) - 1
 })
 
-result.to_csv('house-pricing/submission/result2.csv', index=False)
+result.to_csv('house-pricing/submission/result2_lasso.csv', index=False)
