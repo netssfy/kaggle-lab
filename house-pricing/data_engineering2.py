@@ -70,11 +70,13 @@ def GetRidgeCV(dataX, dataY):
     a = model.alpha_
     model = RidgeCV(alphas=[a * .5, a * .55, a * .6, a * .65, a * .7, a * .75, a * .8,
                             a * .85, a * .9, a * .95, a * 1, a * 1.05, a * 1.1, a * 1.15,
-                            a * 1.2, a * 1.25, a * 1.3, a * 1.35, a * 1.4], scoring='neg_mean_squared_error')
+                            a * 1.2, a * 1.25, a * 1.3, a * 1.35, a * 1.4], scoring='neg_mean_squared_error',
+                            store_cv_values=True)
     model.fit(trainX, trainY)
 
     print('best alpha:', model.alpha_)
     print('picked ' + str(sum(model.coef_ != 0)) + ' features and eliminated the other ' + str(sum(model.coef_ == 0)) + ' features')
+    print('score = %f'%model.score(dataX, dataY))
 
     print('=' * 10 + 'RidgeCV' + '=' * 10)
     return model
@@ -100,15 +102,17 @@ def GetLassoCV(dataX, dataY):
 
 def GetElasticNet(dataX, dataY):
     print('=' * 10 + 'ElasticNet' + '=' * 10)
+    print('=' * 20)
     l1_ratio = [0.1, 0.3, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 1]
     alphas = [0.0001, 0.0003, 0.0006, 0.001, 0.003, 0.006, 0.01, 0.03, 0.06, 0.1, 0.3, 0.6, 1, 3, 6]
-    model = ElasticNetCV(l1_ratio=l1_ratio, alphas=alphas, max_iter=1000, cv=10)
+    model = ElasticNetCV(l1_ratio=l1_ratio, alphas=alphas, max_iter=1000)
     model.fit(dataX, dataY)
     a = model.alpha_
     l1 = model.l1_ratio_
     print('best alpha=%f l1=%f converged at iter=%d'%(model.alpha_, model.l1_ratio_, model.n_iter_))
+    print('=' * 20)
     print('Try again for more precision with l1_ratio centered around %f'%l1)
-    model = ElasticNetCV(alpha=alphas, max_iter=1000, 
+    model = ElasticNetCV(alphas=alphas, max_iter=1000, 
                        l1_ratio=[l1 * .5, l1 * .55, l1 * .6, l1 * .65, l1 * .7, l1 * .75, l1 * .8,
                                  l1 * .85, l1 * .9, l1 * .95, l1 * 1, l1 * 1.05, l1 * 1.1, l1 * 1.15,
                                  l1 * 1.2, l1 * 1.25, l1 * 1.3, l1 * 1.35, l1 * 1.4])
@@ -116,6 +120,7 @@ def GetElasticNet(dataX, dataY):
     a = model.alpha_
     l1 = model.l1_ratio_
     print('best alpha=%f l1=%f converged at iter=%d'%(model.alpha_, model.l1_ratio_, model.n_iter_))
+    print('=' * 20)
     print('Try again for more precision with alpha centered around %f'%a)
     model = ElasticNetCV(alphas=[a * .5, a * .55, a * .6, a * .65, a * .7, a * .75, a * .8,
                             a * .85, a * .9, a * .95, a * 1, a * 1.05, a * 1.1, a * 1.15,
@@ -151,7 +156,7 @@ trainX.loc[:, :] = stdScaler.fit_transform(trainX.loc[:, :])
 
 # tX, vX, tY, vY = train_test_split(trainX, trainY, test_size=0.3, random_state=0)
 # cross_validation(model, tX, tY, vX, vY)
-model = GetElasticNet(trainX, trainY)
+model = GetRidgeCV(trainX, trainY)
 
 test = pd.read_csv('house-pricing/data/test.csv')
 testId = test['Id']
