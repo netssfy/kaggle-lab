@@ -10,56 +10,31 @@ from sklearn.preprocessing import Imputer
 from sklearn.linear_model import RidgeCV
 from sklearn.linear_model import LassoCV
 from sklearn.linear_model import ElasticNetCV
+from sklearn.ensemble import RandomForestRegressor
 from scipy.stats import skew
 
 pd.set_option('display.float_format', lambda x: '%.6f'%x)
 
-def cross_validation(model, tX, tY, vX, vY):
-    tScores = cross_val_score(model, tX, tY, scoring='neg_mean_squared_error', cv=10)
-    tRMSE = np.sqrt(-tScores).mean()
-
-    vScores = cross_val_score(model, vX, vY, scoring='neg_mean_squared_error', cv=10)
-    vRMSE = np.sqrt(-vScores).mean()
-
-    print('RMSE on Training set:', tRMSE)
-    print('RMSE on Validation set:', vRMSE)
+def GetRandomForestRegressor(X, Y):
+    print('=' * 10 + 'RandomForestRegressor' + '=' * 10)
+    narray = [10, 30, 100]
+    bestScore = 100000000
+    bestN = 10
+    bestModel = None
+    for n in narray:
+        model = RandomForestRegressor(n_estimators=n)
+        scores = cross_val_score(model, X, Y, scoring='neg_mean_squared_error', cv=10)
+        score = np.sqrt(-scores).mean()
+        print('score=%f at n=%d'%(score, n))
+        if score < bestScore:
+            bestScore = score
+            bestN = n
+            bestModel = model
     
-    tPred = model.predict(tX)
-    vPred = model.predict(vX)
-
-    #plot residuals
-    plt.scatter(tPred, tPred - tY, c='blue', marker='s', label='Training data')
-    plt.scatter(vPred, vPred - vY, c='red', marker='s', label='Validation data')
-    plt.title('Cross validation')
-    plt.xlabel('Predicted values')
-    plt.ylabel('Residuals')
-    plt.legend(loc='upper left')
-    xmin = np.min([tPred.min(), vPred.min()])
-    xmax = np.max([tPred.max(), vPred.max()])
-    plt.hlines(y=0, xmin=xmin, xmax=xmax, color='black')
-    plt.show()
-
-    #plot predictions
-    plt.scatter(tPred, tY, c='blue', marker='s', label='Training data')
-    plt.scatter(vPred, vY, c='red', marker='s', label='Validation data')
-    plt.title('Cross validation')
-    plt.xlabel('Predicted values')
-    plt.ylabel('Real values')
-    plt.legend(loc='upper left')
-    xmin = np.min([tPred.min(), vPred.min()])
-    xmax = np.max([tPred.max(), vPred.max()])
-    ymin = np.min([tY.min(), vY.min()])
-    ymax = np.max([tY.max(), vY.max()])
-    plt.plot([xmin, xmax], [ymin, ymax], c='black')
-    plt.show()
-
-    #plot important coefficients
-    coefs = pd.Series(model.coef_, index=tX.columns)
-    print('Model picked ' + str(sum(coefs != 0)) + 'features and eliminated the other ' + str(sum(coefs == 0)) + ' features')
-    imp_coefs = pd.concat([coefs.sort_values().head(10), coefs.sort_values().tail(10)])
-    imp_coefs.plot(kind='barh')
-    plt.title('Coefficients in the model')
-    plt.show()
+    print('best n=%d best score=%f'%(bestN, bestScore))
+    print('=' * 10 + 'RandomForestRegressor' + '=' * 10)
+    bestModel.fit(X, Y)
+    return bestModel
 
 def GetRidgeCV(dataX, dataY):
     print('=' * 10 + 'RidgeCV' + '=' * 10)
@@ -133,6 +108,54 @@ def GetElasticNet(dataX, dataY):
     
     print('=' * 10 + 'ElasticNet' + '=' * 10)
     return model
+
+def cross_validation(model, tX, tY, vX, vY):
+    tScores = cross_val_score(model, tX, tY, scoring='neg_mean_squared_error', cv=10)
+    tRMSE = np.sqrt(-tScores).mean()
+
+    vScores = cross_val_score(model, vX, vY, scoring='neg_mean_squared_error', cv=10)
+    vRMSE = np.sqrt(-vScores).mean()
+
+    print('RMSE on Training set:', tRMSE)
+    print('RMSE on Validation set:', vRMSE)
+    
+    tPred = model.predict(tX)
+    vPred = model.predict(vX)
+
+    #plot residuals
+    plt.scatter(tPred, tPred - tY, c='blue', marker='s', label='Training data')
+    plt.scatter(vPred, vPred - vY, c='red', marker='s', label='Validation data')
+    plt.title('Cross validation')
+    plt.xlabel('Predicted values')
+    plt.ylabel('Residuals')
+    plt.legend(loc='upper left')
+    xmin = np.min([tPred.min(), vPred.min()])
+    xmax = np.max([tPred.max(), vPred.max()])
+    plt.hlines(y=0, xmin=xmin, xmax=xmax, color='black')
+    plt.show()
+
+    #plot predictions
+    plt.scatter(tPred, tY, c='blue', marker='s', label='Training data')
+    plt.scatter(vPred, vY, c='red', marker='s', label='Validation data')
+    plt.title('Cross validation')
+    plt.xlabel('Predicted values')
+    plt.ylabel('Real values')
+    plt.legend(loc='upper left')
+    xmin = np.min([tPred.min(), vPred.min()])
+    xmax = np.max([tPred.max(), vPred.max()])
+    ymin = np.min([tY.min(), vY.min()])
+    ymax = np.max([tY.max(), vY.max()])
+    plt.plot([xmin, xmax], [ymin, ymax], c='black')
+    plt.show()
+
+    #plot important coefficients
+    coefs = pd.Series(model.coef_, index=tX.columns)
+    print('Model picked ' + str(sum(coefs != 0)) + 'features and eliminated the other ' + str(sum(coefs == 0)) + ' features')
+    imp_coefs = pd.concat([coefs.sort_values().head(10), coefs.sort_values().tail(10)])
+    imp_coefs.plot(kind='barh')
+    plt.title('Coefficients in the model')
+    plt.show()
+
 #%%
 train = pd.read_csv('house-pricing/data/train.csv')
 #convert categorical
@@ -156,7 +179,7 @@ trainX.loc[:, :] = stdScaler.fit_transform(trainX.loc[:, :])
 
 # tX, vX, tY, vY = train_test_split(trainX, trainY, test_size=0.3, random_state=0)
 # cross_validation(model, tX, tY, vX, vY)
-model = GetRidgeCV(trainX, trainY)
+model = GetRandomForestRegressor(trainX, trainY)
 
 test = pd.read_csv('house-pricing/data/test.csv')
 testId = test['Id']
