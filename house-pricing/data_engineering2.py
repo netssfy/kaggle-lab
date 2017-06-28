@@ -51,7 +51,7 @@ def GetXGBRegressor(X, Y):
     X = X.as_matrix()
     model.fit(X, Y)
     print('=' * 10 + 'XGBRegressor' + '=' * 10)
-    return model;
+    return model
 
 def GetRandomForestRegressor(X, Y):
     print('=' * 10 + 'RandomForestRegressor' + '=' * 10)
