@@ -11,7 +11,7 @@ from sklearn.preprocessing import Imputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import cross_val_score, train_test_split
-# from xgboost.sklearn import XGBRegressor
+from xgboost.sklearn import XGBRegressor
 
 rawTrain = pd.read_csv('house-pricing/data/train.csv')
 rawTrainX = rawTrain.drop(['SalePrice', 'Id'], axis=1)
@@ -63,34 +63,35 @@ stdScaler = StandardScaler()
 mergedX.loc[: ,:] = stdScaler.fit_transform(mergedX.loc[:, :])
 
 def GetXGBRegressor(X, Y):
-    print('=' * 10 + 'XGBRegressor' + '=' * 10)
-    etas = [0.01, 0.03, 0.1, 0.2, 0.3, 0.6]
-    depths = [3, 4, 5, 6, 7, 8, 9, 10]
-    child_weights = [1, 2, 3]
-    gammas = [0.01, 0.03, 0.1, 0.3]
-    params = []
-    for a1 in etas:
-        for a2 in depths:
-            for a3 in child_weights:
-                for a4 in gammas:
-                    params.append({ 'eta': a1, 'depth': a2, 'child_weight': a3, 'gamma': a4})
+    # print('=' * 10 + 'XGBRegressor' + '=' * 10)
+    # etas = [0.05, 0.1, 0.15]
+    # depths = [3, 4, 5, 6, 7, 8, 9, 10]
+    # child_weights = [1, 2, 3]
+    # gammas = [0.01, 0.03]
+    # params = []
+    # for a1 in etas:
+    #     for a2 in depths:
+    #         for a3 in child_weights:
+    #             for a4 in gammas:
+    #                 params.append({ 'eta': a1, 'depth': a2, 'child_weight': a3, 'gamma': a4})
 
-    X = X.as_matrix()
-    bestScore = 10000000
-    bestParam = None
-    bestModel = None
-    for param in params:
-        print('running ' + str(param))
-        model = XGBRegressor(learning_rate=param['eta'], max_depth=param['depth'], min_child_weight=param['child_weight'], gamma=param['gamma'])
-        scores = cross_val_score(model, X, Y, scoring='neg_mean_squared_error', cv=3)
-        score = np.sqrt(-scores).mean()
+    # X = X.as_matrix()
+    # bestScore = 10000000
+    # bestParam = None
+    # bestModel = None
+    # for param in params:
+    #     print('running ' + str(param))
+    #     model = XGBRegressor(learning_rate=param['eta'], max_depth=param['depth'], min_child_weight=param['child_weight'], gamma=param['gamma'])
+    #     scores = cross_val_score(model, X, Y, scoring='neg_mean_squared_error', cv=3)
+    #     score = np.sqrt(-scores).mean()
 
-        print('score=%f'%(score))
-        if score < bestScore:
-            bestScore = score
-            bestParam = param
-            bestModel = model
+    #     print('score=%f'%(score))
+    #     if score < bestScore:
+    #         bestScore = score
+    #         bestParam = param
+    #         bestModel = model
     
+    param = {'child_weight': 3, 'depth': 10, 'eta': 0.15, 'gamma': 0.03}
     print('best param = ' + str(param))
     model = XGBRegressor(learning_rate=param['eta'], max_depth=param['depth'], min_child_weight=param['child_weight'], gamma=param['gamma'])
     X = X.as_matrix()
@@ -124,7 +125,11 @@ len = rawTrainX.shape[0]
 trainX = mergedX[:len]
 testX = mergedX[len:]
 
-model = GetRandomForestRegressor(trainX, trainY)
+model = GetXGBRegressor(trainX, trainY)
+
+if type(model) == XGBRegressor:
+    testX = testX.as_matrix()
+
 pred = model.predict(testX)
 result = pd.DataFrame({
     'Id': testId,
