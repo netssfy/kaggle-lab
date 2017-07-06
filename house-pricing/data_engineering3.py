@@ -28,7 +28,7 @@ print('raw train info = ' + str(rawTrainX.shape))
 print('raw test info = ' + str(rawTestX.shape))
 print('merged train info = ' + str(mergedX.shape))
 
-mergedX = mergedX.drop(['Alley', 'PoolQC', 'Fence', 'MiscFeature'], axis=1)
+# mergedX = mergedX.drop(['Alley', 'PoolQC', 'Fence', 'MiscFeature'], axis=1)
 
 #增加特征
 mergedX['TotalBath'] = mergedX['FullBath'] + mergedX['HalfBath']
@@ -59,15 +59,15 @@ skewnessF = skewness.index
 mergedX[skewnessF] = np.log1p(mergedX[skewnessF])
 
 #做标准化归一化处理
-stdScaler = StandardScaler()
-mergedX.loc[: ,:] = stdScaler.fit_transform(mergedX.loc[:, :])
+# stdScaler = StandardScaler()
+# mergedX.loc[: ,:] = stdScaler.fit_transform(mergedX.loc[:, :])
 
 def GetXGBRegressor(X, Y):
     # print('=' * 10 + 'XGBRegressor' + '=' * 10)
-    # etas = [0.05, 0.1, 0.15]
-    # depths = [3, 4, 5, 6, 7, 8, 9, 10]
-    # child_weights = [1, 2, 3]
-    # gammas = [0.01, 0.03]
+    # etas = [0.13, 0.15, 0.18]
+    # depths = [7, 10]
+    # child_weights = [3, 5, 8]
+    # gammas = [0.26, 0.03, 0.034]
     # params = []
     # for a1 in etas:
     #     for a2 in depths:
@@ -91,9 +91,9 @@ def GetXGBRegressor(X, Y):
     #         bestParam = param
     #         bestModel = model
     
-    param = {'child_weight': 3, 'depth': 10, 'eta': 0.15, 'gamma': 0.03}
-    print('best param = ' + str(param))
-    model = XGBRegressor(learning_rate=param['eta'], max_depth=param['depth'], min_child_weight=param['child_weight'], gamma=param['gamma'])
+    bestParam = {'child_weight': 8, 'depth': 7, 'eta': 0.13, 'gamma': 0.034}
+    print('best param = ' + str(bestParam))
+    model = XGBRegressor(learning_rate=bestParam['eta'], max_depth=bestParam['depth'], min_child_weight=bestParam['child_weight'], gamma=bestParam['gamma'])
     X = X.as_matrix()
     model.fit(X, Y)
     print('=' * 10 + 'XGBRegressor' + '=' * 10)
