@@ -28,7 +28,7 @@ print('raw train info = ' + str(rawTrainX.shape))
 print('raw test info = ' + str(rawTestX.shape))
 print('merged train info = ' + str(mergedX.shape))
 
-# mergedX = mergedX.drop(['Alley', 'PoolQC', 'Fence', 'MiscFeature'], axis=1)
+mergedX = mergedX.drop(['Alley', 'PoolQC', 'Fence', 'MiscFeature'], axis=1)
 
 #增加特征
 mergedX['TotalBath'] = mergedX['FullBath'] + mergedX['HalfBath']
@@ -59,42 +59,42 @@ skewnessF = skewness.index
 mergedX[skewnessF] = np.log1p(mergedX[skewnessF])
 
 #做标准化归一化处理
-# stdScaler = StandardScaler()
-# mergedX.loc[: ,:] = stdScaler.fit_transform(mergedX.loc[:, :])
+stdScaler = StandardScaler()
+mergedX.loc[: ,:] = stdScaler.fit_transform(mergedX.loc[:, :])
 
 def GetXGBRegressor(X, Y):
-    # print('=' * 10 + 'XGBRegressor' + '=' * 10)
-    # etas = [0.13, 0.15, 0.18]
-    # depths = [7, 10]
-    # child_weights = [3, 5, 8]
-    # gammas = [0.26, 0.03, 0.034]
-    # params = []
-    # for a1 in etas:
-    #     for a2 in depths:
-    #         for a3 in child_weights:
-    #             for a4 in gammas:
-    #                 params.append({ 'eta': a1, 'depth': a2, 'child_weight': a3, 'gamma': a4})
+    X = X.as_matrix()
 
-    # X = X.as_matrix()
-    # bestScore = 10000000
-    # bestParam = None
-    # bestModel = None
-    # for param in params:
-    #     print('running ' + str(param))
-    #     model = XGBRegressor(learning_rate=param['eta'], max_depth=param['depth'], min_child_weight=param['child_weight'], gamma=param['gamma'])
-    #     scores = cross_val_score(model, X, Y, scoring='neg_mean_squared_error', cv=3)
-    #     score = np.sqrt(-scores).mean()
+    print('=' * 10 + 'XGBRegressor' + '=' * 10)
+    etas = [0.087, 0.09, 0.093]
+    depths = [10]
+    child_weights = [1, 4, 8]
+    gammas = [0.0338, 0.034, 0.0342]
+    params = []
+    for a1 in etas:
+        for a2 in depths:
+            for a3 in child_weights:
+                for a4 in gammas:
+                    params.append({ 'eta': a1, 'depth': a2, 'child_weight': a3, 'gamma': a4})
 
-    #     print('score=%f'%(score))
-    #     if score < bestScore:
-    #         bestScore = score
-    #         bestParam = param
-    #         bestModel = model
+    bestScore = 10000000
+    bestParam = None
+    bestModel = None
+    for param in params:
+        print('running ' + str(param))
+        model = XGBRegressor(learning_rate=param['eta'], max_depth=param['depth'], min_child_weight=param['child_weight'], gamma=param['gamma'])
+        scores = cross_val_score(model, X, Y, scoring='neg_mean_squared_error', cv=5)
+        score = np.sqrt(-scores).mean()
+
+        print('score=%f'%(score))
+        if score < bestScore:
+            bestScore = score
+            bestParam = param
+            bestModel = model
     
-    bestParam = {'child_weight': 8, 'depth': 7, 'eta': 0.13, 'gamma': 0.034}
+    # bestParam = {'child_weight': 4, 'depth': 10, 'eta': 0.093, 'gamma': 0.0342}
     print('best param = ' + str(bestParam))
     model = XGBRegressor(learning_rate=bestParam['eta'], max_depth=bestParam['depth'], min_child_weight=bestParam['child_weight'], gamma=bestParam['gamma'])
-    X = X.as_matrix()
     model.fit(X, Y)
     print('=' * 10 + 'XGBRegressor' + '=' * 10)
     return model
