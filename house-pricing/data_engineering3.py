@@ -66,10 +66,10 @@ def GetXGBRegressor(X, Y):
     X = X.as_matrix()
 
     print('=' * 10 + 'XGBRegressor' + '=' * 10)
-    etas = [0.087, 0.09, 0.093]
-    depths = [10]
-    child_weights = [1, 4, 8]
-    gammas = [0.0338, 0.034, 0.0342]
+    etas = [0.0925, 0.093, 0.0935]
+    depths = [10, 12]
+    child_weights = [3, 4, 5]
+    gammas = [0.0341, 0.0342, 0.0343]
     params = []
     for a1 in etas:
         for a2 in depths:
@@ -92,7 +92,7 @@ def GetXGBRegressor(X, Y):
             bestParam = param
             bestModel = model
     
-    # bestParam = {'child_weight': 4, 'depth': 10, 'eta': 0.093, 'gamma': 0.0342}
+    # bestParam = {'child_weight': 4, 'depth': 10, 'eta': 0.093, 'gamma': 0.0341}
     print('best param = ' + str(bestParam))
     model = XGBRegressor(learning_rate=bestParam['eta'], max_depth=bestParam['depth'], min_child_weight=bestParam['child_weight'], gamma=bestParam['gamma'])
     model.fit(X, Y)
