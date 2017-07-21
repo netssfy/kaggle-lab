@@ -14,6 +14,10 @@ from sklearn.model_selection import cross_val_score, train_test_split
 from xgboost.sklearn import XGBRegressor
 
 rawTrain = pd.read_csv('house-pricing/data/train.csv')
+
+#删除outliers离群数据,只删除train上的
+rawTrain = rawTrain.drop(rawTrain[(rawTrain['GrLivArea'] > 4000) & (rawTrain['SalePrice'] <  300000)].index)
+
 rawTrainX = rawTrain.drop(['SalePrice', 'Id'], axis=1)
 rawTrainY = rawTrain['SalePrice']
 
@@ -21,14 +25,55 @@ rawTest = pd.read_csv('house-pricing/data/test.csv')
 testId = rawTest['Id']
 rawTestX = rawTest.drop(['Id'], axis=1)
 
-#讲两者合并,再处理,因为有些分类特征可能在test里有,但是在train里没有
+#将两者合并,再处理,因为有些分类特征可能在test里有,但是在train里没有
 mergedX = pd.concat([rawTrainX, rawTestX])
+#快捷方式
+mx = mergedX
+print('merged train info = ' + str(mx.shape))
 
-print('raw train info = ' + str(rawTrainX.shape))
-print('raw test info = ' + str(rawTestX.shape))
-print('merged train info = ' + str(mergedX.shape))
+#处理特征的缺失值
+mx['PoolQC'] = mx['PoolQC'].fillna('None')
+mx['MiscFeature'] = mx['MiscFeature'].fillna('None')
+mx['Alley'] = mx['Alley'].fillna('None')
+mx['Fence'] = mx['Fence'].fillna('None')
+mx['FireplaceQu'] = mx['FireplaceQu'].fillna('None')
 
-mergedX = mergedX.drop(['Alley', 'PoolQC', 'Fence', 'MiscFeature'], axis=1)
+#门前的距离取同区域邻居数据的中位数
+mx['LotFrontage'] = mx.groupby('Neighborhood')['LotFrontage'].transform(lambda x: x.fillna(x.median()))
+
+for col in ['GarageType', 'GarageFinish', 'GarageQual', 'GarageCond']:
+    mx[col] = mx[col].fillna('None')
+
+for col in ['GarageYrBlt', 'GarageArea', 'GarageCars']:
+    mx[col] = mx[col].fillna(0)
+
+for col in ['BsmtFinSF1', 'BsmtFinSF2', 'BsmtUnfSF','TotalBsmtSF', 'BsmtFullBath', 'BsmtHalfBath']:
+    mx[col] = mx[col].fillna(0)
+
+for col in ['BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1', 'BsmtFinType2']:
+    mx[col] = mx[col].fillna('None')
+
+mx['MasVnrType'] = mx['MasVnrType'].fillna('None')
+mx['MasVnrArea'] = mx['MasVnrArea'].fillna(0)
+
+mx['MSZoning'] = mx['MSZoning'].fillna(mx['MSZoning'].mode()[0])
+
+#For this categorical feature all records are "AllPub", except for one "NoSeWa" and 2 NA .
+#Since the house with 'NoSewa' is in the training set, this feature won't help in predictive modelling. We can then safely remove it.
+mx = mx.drop(['Utilities'], axis=1)
+
+mx['Functional'] = mx['Functional'].fillna('Typ')
+
+mx['Electrical'] = mx['Electrical'].fillna(mx['Electrical'].mode()[0])
+
+mx['KitchenQual'] = mx['KitchenQual'].fillna(mx['KitchenQual'].mode()[0])
+
+mx['Exterior1st'] = mx['Exterior1st'].fillna(mx['Exterior1st'].mode()[0])
+mx['Exterior2nd'] = mx['Exterior2nd'].fillna(mx['Exterior2nd'].mode()[0])
+
+mx['SaleType'] = mx['SaleType'].fillna(mx['SaleType'].mode()[0])
+
+mx['MSSubClass'] = mx['MSSubClass'].fillna("None")
 
 #增加特征
 mergedX['TotalBath'] = mergedX['FullBath'] + mergedX['HalfBath']
