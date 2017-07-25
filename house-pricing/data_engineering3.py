@@ -9,11 +9,16 @@ import pandas as pd
 from scipy.stats import skew
 from sklearn.preprocessing import Imputer
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import cross_val_score, train_test_split
-from sklearn.preprocessing import LabelEncoder
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.model_selection import KFold, cross_val_score, train_test_split
+from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin, clone
+from sklearn.preprocessing import LabelEncoder, RobustScaler
+from sklearn.linear_model import ElasticNet, Lasso,  BayesianRidge, LassoLarsIC
+from sklearn.kernel_ridge import KernelRidge
+from sklearn.pipeline import make_pipeline
 from scipy.special import boxcox1p
 from xgboost.sklearn import XGBRegressor
+from sklearn.metrics import mean_squared_error
 
 rawTrain = pd.read_csv('house-pricing/data/train.csv')
 
@@ -97,13 +102,13 @@ for c in cols:
 
 #增加特征
 mx['TotalSF'] = mx['TotalBsmtSF'] + mx['1stFlrSF'] + mx['2ndFlrSF']
-mx['TotalBath'] = mx['FullBath'] + mx['HalfBath']
-mx['BathPerBedroom'] = mx['TotalBath'] / mx['BedroomAbvGr']
+# mx['TotalBath'] = mx['FullBath'] + mx['HalfBath']
+# mx['BathPerBedroom'] = mx['TotalBath'] / mx['BedroomAbvGr']
 
-mx['KitchenPerBedroom'] = mx['KitchenAbvGr'] / mx['BedroomAbvGr']
-mx['KitchenPerBath'] = mx['KitchenAbvGr'] / mx['TotalBath']
+# mx['KitchenPerBedroom'] = mx['KitchenAbvGr'] / mx['BedroomAbvGr']
+# mx['KitchenPerBath'] = mx['KitchenAbvGr'] / mx['TotalBath']
 
-mx['GarageCarsPerBedroom'] = mx['GarageCars'] / mx['BedroomAbvGr']
+# mx['GarageCarsPerBedroom'] = mx['GarageCars'] / mx['BedroomAbvGr']
 
 mx = mx.replace([np.inf, -np.inf], 0.0001)
 
@@ -121,9 +126,63 @@ for feat in skewnessF:
 #对y做log,使其更正态
 trainY = np.log1p(rawTrainY)
 
-#做标准化归一化处理
-# stdScaler = StandardScaler()
-# mx.loc[: ,:] = stdScaler.fit_transform(mx.loc[:, :])
+n_folds = 5
+
+def rmse_cv(model, dataX, dataY):
+    kf = KFold(n_folds, shuffle=True, random_state=42).get_n_splits(dataX)
+    rmse = np.sqrt(-cross_val_score(model, dataX, dataY, scoring='neg_mean_squared_error', cv=kf))
+    return rmse
+
+def rmse(y, y_pred):
+    return np.sqrt(mean_squared_error(y, y_pred))
+
+# stacking models
+class AveragingModels(BaseEstimator, RegressorMixin, TransformerMixin):
+    def __init__(self, models):
+        self.models = models
+
+    def fit(self, X, y):
+        self.models_ = [clone(x) for x in self.models]
+
+        for model in self.models_:
+            model.fit(X, y)
+
+        return self
+
+    def predict(self, X):
+        predictions = np.column_stack([
+            model.predict(X) for model in self.models_
+        ])
+        return np.mean(predictions, axis=1)
+
+class StackingAveragedModels(BaseEstimator, RegressorMixin, TransformerMixin):
+    def __init__(self, base_models, meta_model, n_folds=5):
+        self.base_models = base_models
+        self.meta_model = meta_model
+        self.n_folds = n_folds
+
+    def fit(self, X, y):
+        self.base_models_ = [list() for x in self.base_models]
+        self.meta_model_ = clone(self.meta_model)
+        kfold = KFold(n_splits=self.n_folds, shuffle=True)
+        
+        out_of_fold_predictions = np.zeros((X.shape[0], len(self.base_models)))
+        for i, clf in enumerate(self.base_models):
+            for train, holdout in kfold.split(X, y):
+                instance = clone(clf)
+                self.base_models_[i].append(instance)
+                instance.fit(X[train], y[train])
+                y_pred = instance.predict(X[holdout])
+                out_of_fold_predictions[holdout, i] = y_pred
+
+        self.meta_model_.fit(out_of_fold_predictions, y)
+        return self
+
+    def predict(self, X):
+        meta_features = np.column_stack([
+            np.column_stack([model.predict(X) for model in base_models]).mean(axis=1)
+            for base_models in self.base_models_ ])
+        return self.meta_model_.predict(meta_features)
 
 def GetXGBRegressor(X, Y):
     X = X.as_matrix()
@@ -183,21 +242,52 @@ def GetRandomForestRegressor(X, Y):
     bestModel.fit(X, Y)
     return bestModel
 
-print(mx.shape)
-len = rawTrainX.shape[0]
-trainX = mx[:len]
-testX = mx[len:]
 
-model = GetXGBRegressor(trainX, trainY)
+length = rawTrainX.shape[0]
+trainX = mx[:length]
+testX = mx[length:]
 
-if type(model) == XGBRegressor:
-    testX = testX.as_matrix()
+# model selecting
+lasso = make_pipeline(RobustScaler(), Lasso(alpha =0.0005, random_state=1))
+ENet = make_pipeline(RobustScaler(), ElasticNet(alpha=0.0005, l1_ratio=.9, random_state=3))
+KRR = KernelRidge(alpha=0.6, kernel='polynomial', degree=2, coef0=2.5)
+GBoost = GradientBoostingRegressor(n_estimators=3000, learning_rate=0.05,
+                                   max_depth=4, max_features='sqrt',
+                                   min_samples_leaf=15, min_samples_split=10, 
+                                   loss='huber', random_state =5)
+model_xgb = XGBRegressor(colsample_bytree=0.2, gamma=0.0, 
+                             learning_rate=0.05, max_depth=6, 
+                             min_child_weight=1.5, n_estimators=7200,
+                             reg_alpha=0.9, reg_lambda=0.6,
+                             subsample=0.2,seed=42, silent=1,
+                             random_state =7)
 
-pred = model.predict(testX)
-result = pd.DataFrame({
-    'Id': testId,
-    'SalePrice': np.exp(pred) - 1
-})
+stacked_averaged_models = StackingAveragedModels(base_models = [ENet, GBoost, KRR],
+                                                 meta_model = lasso)
 
-result.to_csv('house-pricing/submission/result3_' + model.__class__.__name__ + '.csv', index=False)
-print('Done')
+stacked_averaged_models.fit(trainX.values, trainY)
+stacked_train_pred = stacked_averaged_models.predict(trainX.values)
+stacked_pred = np.expm1(stacked_averaged_models.predict(test.values))
+rmse(trainY, stacked_train_pred)
+# model = GetXGBRegressor(trainX, trainY)
+# 'child_weight': 4, 'depth': 10, 'eta': 0.093, 'gamma': 0.0341
+# model = XGBRegressor(
+#                     colsample_bytree=0.2, gamma=0.0, 
+#                     learning_rate=0.05, max_depth=6, 
+#                     min_child_weight=1.5, n_estimators=7200,
+#                     reg_alpha=0.9, reg_lambda=0.6,
+#                     subsample=0.2, seed=42, silent=1, random_state =7,
+#                     child_weight=4, depth=10, eta=0.093
+#                     )
+
+# if type(model) == XGBRegressor:
+#     testX = testX.as_matrix()
+
+# pred = model.predict(testX)
+# result = pd.DataFrame({
+#     'Id': testId,
+#     'SalePrice': np.exp(pred) - 1
+# })
+
+# result.to_csv('house-pricing/submission/result3_' + model.__class__.__name__ + '.csv', index=False)
+# print('Done')
