@@ -122,12 +122,14 @@ skewnessF = skewness.index
 lam = 0.15
 for feat in skewnessF:
     mx[feat] = boxcox1p(mx[feat], lam)
+    mx[feat] += 1
 
 #对y做log,使其更正态
 trainY = np.log1p(rawTrainY)
 
 n_folds = 5
 
+#%%
 def rmse_cv(model, dataX, dataY):
     kf = KFold(n_folds, shuffle=True, random_state=42).get_n_splits(dataX)
     rmse = np.sqrt(-cross_val_score(model, dataX, dataY, scoring='neg_mean_squared_error', cv=kf))
@@ -171,8 +173,8 @@ class StackingAveragedModels(BaseEstimator, RegressorMixin, TransformerMixin):
             for train, holdout in kfold.split(X, y):
                 instance = clone(clf)
                 self.base_models_[i].append(instance)
-                instance.fit(X[train], y[train])
-                y_pred = instance.predict(X[holdout])
+                instance.fit(X.iloc[train], y.iloc[train])
+                y_pred = instance.predict(X.iloc[holdout])
                 out_of_fold_predictions[holdout, i] = y_pred
 
         self.meta_model_.fit(out_of_fold_predictions, y)
@@ -259,16 +261,39 @@ model_xgb = XGBRegressor(colsample_bytree=0.2, gamma=0.0,
                              learning_rate=0.05, max_depth=6, 
                              min_child_weight=1.5, n_estimators=7200,
                              reg_alpha=0.9, reg_lambda=0.6,
-                             subsample=0.2,seed=42, silent=1,
-                             random_state =7)
+                             subsample=0.2,seed=42, silent=1)
 
 stacked_averaged_models = StackingAveragedModels(base_models = [ENet, GBoost, KRR],
                                                  meta_model = lasso)
 
-stacked_averaged_models.fit(trainX.values, trainY)
-stacked_train_pred = stacked_averaged_models.predict(trainX.values)
-stacked_pred = np.expm1(stacked_averaged_models.predict(test.values))
-rmse(trainY, stacked_train_pred)
+#%%
+#ensembling model
+#StackedRegressor
+stacked_averaged_models.fit(trainX, trainY)
+stacked_train_pred = stacked_averaged_models.predict(trainX)
+stacked_pred = np.expm1(stacked_averaged_models.predict(testX))
+print('stacked rmse = {}'.format(rmse(trainY, stacked_train_pred)))
+
+#XGBoost
+model_xgb.fit(trainX, trainY)
+xgb_train_pred = model_xgb.predict(trainX)
+xgb_pred = np.expm1(model_xgb.predict(testX))
+print('xgb rmse = {}'.format(rmse(trainY, xgb_train_pred)))
+
+'''RMSE on the entire Train data when averaging'''
+print('RMSE score on train data')
+print(rmse(trainY, stacked_train_pred * 0.7 + xgb_train_pred * 0.3))
+
+ensemble = stacked_pred * 0.7 + xgb_pred * 0.3
+
+result = pd.DataFrame({
+    'Id': testId,
+    'SalePrice': ensemble
+})
+
+result.to_csv('house-pricing/submission/result3_ensemble.csv', index=False)
+print('Done')
+
 # model = GetXGBRegressor(trainX, trainY)
 # 'child_weight': 4, 'depth': 10, 'eta': 0.093, 'gamma': 0.0341
 # model = XGBRegressor(
