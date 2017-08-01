@@ -102,23 +102,23 @@ for c in cols:
 
 #增加特征
 mx['TotalSF'] = mx['TotalBsmtSF'] + mx['1stFlrSF'] + mx['2ndFlrSF']
-# mx['TotalBath'] = mx['FullBath'] + mx['HalfBath']
+mx['TotalBath'] = mx['FullBath'] + mx['HalfBath']
 
-# mx['BathPerBedroom'] = mx['TotalBath'] / mx['BedroomAbvGr']
-# mx['BathPerBedroom'] = mx['BathPerBedroom'].replace([np.inf, -np.inf], 0)
-# mx['BathPerBedroom'] = mx['BathPerBedroom'].fillna(0)
+mx['BathPerBedroom'] = mx['TotalBath'] / mx['BedroomAbvGr']
+mx['BathPerBedroom'] = mx['BathPerBedroom'].replace([np.inf, -np.inf], 0)
+mx['BathPerBedroom'] = mx['BathPerBedroom'].fillna(0)
 
-# mx['KitchenPerBedroom'] = mx['KitchenAbvGr'] / mx['BedroomAbvGr']
-# mx['KitchenPerBedroom'] = mx['KitchenPerBedroom'].replace([np.inf, -np.inf], 0)
-# mx['KitchenPerBedroom'] = mx['KitchenPerBedroom'].fillna(0)
+mx['KitchenPerBedroom'] = mx['KitchenAbvGr'] / mx['BedroomAbvGr']
+mx['KitchenPerBedroom'] = mx['KitchenPerBedroom'].replace([np.inf, -np.inf], 0)
+mx['KitchenPerBedroom'] = mx['KitchenPerBedroom'].fillna(0)
 
-# mx['KitchenPerBath'] = mx['KitchenAbvGr'] / mx['TotalBath']
-# mx['KitchenPerBath'] = mx['KitchenPerBath'].replace([np.inf, -np.inf], 0)
-# mx['KitchenPerBath'] = mx['KitchenPerBath'].fillna(0)
+mx['KitchenPerBath'] = mx['KitchenAbvGr'] / mx['TotalBath']
+mx['KitchenPerBath'] = mx['KitchenPerBath'].replace([np.inf, -np.inf], 0)
+mx['KitchenPerBath'] = mx['KitchenPerBath'].fillna(0)
 
-# mx['GarageCarsPerBedroom'] = mx['GarageCars'] / mx['BedroomAbvGr']
-# mx['GarageCarsPerBedroom'] = mx['GarageCarsPerBedroom'].replace([np.inf, -np.inf], 0)
-# mx['GarageCarsPerBedroom'] = mx['GarageCarsPerBedroom'].fillna(0)
+mx['GarageCarsPerBedroom'] = mx['GarageCars'] / mx['BedroomAbvGr']
+mx['GarageCarsPerBedroom'] = mx['GarageCarsPerBedroom'].replace([np.inf, -np.inf], 0)
+mx['GarageCarsPerBedroom'] = mx['GarageCarsPerBedroom'].fillna(0)
 
 #分类特征dummy
 mx = pd.get_dummies(mx)
