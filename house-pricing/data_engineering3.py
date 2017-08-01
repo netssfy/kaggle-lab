@@ -103,14 +103,22 @@ for c in cols:
 #增加特征
 mx['TotalSF'] = mx['TotalBsmtSF'] + mx['1stFlrSF'] + mx['2ndFlrSF']
 # mx['TotalBath'] = mx['FullBath'] + mx['HalfBath']
+
 # mx['BathPerBedroom'] = mx['TotalBath'] / mx['BedroomAbvGr']
+# mx['BathPerBedroom'] = mx['BathPerBedroom'].replace([np.inf, -np.inf], 0)
+# mx['BathPerBedroom'] = mx['BathPerBedroom'].fillna(0)
 
 # mx['KitchenPerBedroom'] = mx['KitchenAbvGr'] / mx['BedroomAbvGr']
+# mx['KitchenPerBedroom'] = mx['KitchenPerBedroom'].replace([np.inf, -np.inf], 0)
+# mx['KitchenPerBedroom'] = mx['KitchenPerBedroom'].fillna(0)
+
 # mx['KitchenPerBath'] = mx['KitchenAbvGr'] / mx['TotalBath']
+# mx['KitchenPerBath'] = mx['KitchenPerBath'].replace([np.inf, -np.inf], 0)
+# mx['KitchenPerBath'] = mx['KitchenPerBath'].fillna(0)
 
 # mx['GarageCarsPerBedroom'] = mx['GarageCars'] / mx['BedroomAbvGr']
-
-mx = mx.replace([np.inf, -np.inf], 0.0001)
+# mx['GarageCarsPerBedroom'] = mx['GarageCarsPerBedroom'].replace([np.inf, -np.inf], 0)
+# mx['GarageCarsPerBedroom'] = mx['GarageCarsPerBedroom'].fillna(0)
 
 #分类特征dummy
 mx = pd.get_dummies(mx)
@@ -129,7 +137,6 @@ trainY = np.log1p(rawTrainY)
 
 n_folds = 5
 
-#%%
 def rmse_cv(model, dataX, dataY):
     kf = KFold(n_folds, shuffle=True, random_state=42).get_n_splits(dataX)
     rmse = np.sqrt(-cross_val_score(model, dataX, dataY, scoring='neg_mean_squared_error', cv=kf))
@@ -266,6 +273,7 @@ model_xgb = XGBRegressor(colsample_bytree=0.2, gamma=0.0,
 stacked_averaged_models = StackingAveragedModels(base_models = [ENet, GBoost, KRR],
                                                  meta_model = lasso)
 
+model_rf = RandomForestRegressor()
 #%%
 #ensembling model
 #StackedRegressor
@@ -280,11 +288,35 @@ xgb_train_pred = model_xgb.predict(trainX)
 xgb_pred = np.expm1(model_xgb.predict(testX))
 print('xgb rmse = {}'.format(rmse(trainY, xgb_train_pred)))
 
+#random forrest
+model_rf.fit(trainX, trainY)
+rf_train_pred = model_rf.predict(trainX)
+rf_pred = np.expm1(model_rf.predict(testX))
+
+print('random forrest = {}'.format(rmse(trainY, rf_train_pred)))
 '''RMSE on the entire Train data when averaging'''
 print('RMSE score on train data')
-print(rmse(trainY, stacked_train_pred * 0.7 + xgb_train_pred * 0.3))
 
-ensemble = stacked_pred * 0.7 + xgb_pred * 0.3
+#%%
+A = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+B = A
+bestRmse = 100
+bestParam = None
+
+for a in A:
+    for b in B:
+        if a + b >= 1:
+            continue
+        c = 1 - a - b
+        val = rmse(trainY, stacked_train_pred * a + xgb_train_pred * b + rf_train_pred * c)
+        print('param a={} b={} c={} rmse={}'.format(a, b, c, val))
+        if val < bestRmse:
+            bestRmse = val
+            bestParam = (a, b, c)
+
+print('best a={} b={} c={} rmse={}'.format(bestParam[0], bestParam[1], bestParam[2], bestRmse))
+
+ensemble = stacked_pred * bestParam[0] + xgb_pred * bestParam[1] + rf_pred * bestParam[2]
 
 result = pd.DataFrame({
     'Id': testId,
