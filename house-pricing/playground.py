@@ -10,4 +10,8 @@ mx = pd.read_csv('house-pricing/data/train.csv')
 print mx['FireplaceQu'][0:5]
 print mx['BsmtQual'][0:5]
 #%%
-[list() for x in [1,2,3]]
+a = np.random.rand(20, 10)
+a.mean(axis=1)
+# a[a > 0.5] = 1
+# a[a < 0.5] = 0
+# a
