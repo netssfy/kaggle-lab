@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import KFold, cross_val_score
+from sklearn.linear_model import ElasticNet, Lasso
+from xgboost.sklearn import XGBClassifier
 
 trainData = pd.read_csv('./titanic/train.csv')
 testData = pd.read_csv('./titanic/test.csv')
@@ -81,7 +83,11 @@ class StackingClassifer:
         return self.current_meta_model.predict(inter_pred)
 #%%
 mdl_rfc = RandomForestClassifier(n_estimators=100, criterion='entropy')
-mdl_stacking = StackingClassifer([mdl_rfc], mdl_rfc)
+mdl_xgb = XGBClassifier()
+mdl_enet = ElasticNet()
+mdl_lasso = Lasso()
+
+mdl_stacking = StackingClassifer([mdl_xgb, mdl_enet, mdl_lasso], mdl_rfc)
 
 mdl_stacking.fit(trainX, trainY)
 mdl_stacking_pred = mdl_stacking.predict(testX)
