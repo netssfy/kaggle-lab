@@ -1,6 +1,7 @@
 '''hello world'''
 
 #%%
+import copy
 import numpy as np
 import pandas as pd
 import sklearn as skl
@@ -82,8 +83,46 @@ class StackingClassifer:
 
         return self.current_meta_model.predict(inter_pred)
 #%%
+def engineering_params(Model, params_map, orthogonal=False):
+    folds = KFold(n_splits=3)
+    best_param = {}
+    for param_name in params_map:
+        param_values = params_map[param_name]
+        tmp = Model()
+        print 'select best {} for model {}'.format(param_name, tmp.__class__.__name__)
+
+        kwparam = {}
+        if not orthogonal:
+            kwparam = copy.copy(best_param)
+        
+        best_score = 0;
+        for value in param_values:
+            kwparam[param_name] = value
+            mdl_temp = Model(**kwparam)
+            score = cross_val_score(mdl_temp, trainX, trainY, cv=folds).mean()
+            if score > best_score:
+                best_score = score
+                best_param[param_name] = value
+    
+    print 'best param {}'.format(best_param)
+    return best_param
+#XGB参数调优
+params_map = {
+    'max_depth': [3, 5, 7, 10],
+    'learning_rate': [0.01, 0.03, 0.1, 0.3, 1],
+    'gamma': [0, 0.01, 0.03, 0.1, 0.3, 1],
+    'min_child_weight': [1, 3, 5, 7],
+    'max_delta_step': [0, 1, 2, 3],
+    'reg_alpha': [0, 0.01, 0.03, 0.1, 0.3, 1],
+    'reg_lambda': [0, 0.01, 0.03, 0.1, 0.3, 1],
+    'scale_pos_weight': [0, 0.01, 0.03, 0.1, 0.3, 1],
+    'base_score': [0.1, 0.3, 0.5, 0.7, 0.9]
+}
+
+xbg_param = engineering_params(XGBClassifier, params_map)
+#%%
 mdl_rfc = RandomForestClassifier(n_estimators=100, criterion='entropy')
-mdl_xgb = XGBClassifier()
+mdl_xgb = XGBClassifier(**xbg_param)
 mdl_enet = ElasticNet()
 mdl_lasso = Lasso()
 
