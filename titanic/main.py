@@ -104,8 +104,9 @@ def engineering_params(Model, params_map, orthogonal=False):
                 best_score = score
                 best_param[param_name] = value
     
-    print 'best param {}'.format(best_param)
+    print 'best param {} at score '.format(best_param)
     return best_param
+#%%
 #XGB参数调优
 params_map = {
     'max_depth': [3, 5, 7, 10],
@@ -121,10 +122,28 @@ params_map = {
 
 xbg_param = engineering_params(XGBClassifier, params_map)
 #%%
+#ElasticNet参数调优
+params_map = {
+    'alpha': [0.1, 0.3, 1, 1.3, 2.1, 3],
+    'l1_ratio': [0.1, 0.3, 0.5, 0.8, 1],
+    'max_iter': [800, 1000, 1300]
+}
+
+enet_param = engineering_params(ElasticNet, params_map)
+
+#%%
+#Lasso参数调优
+params_map = {
+    'alpha': [0.1, 0.3, 1, 1.3, 2.1, 3],
+    'max_iter': [800, 1000, 1300]
+}
+
+lasso_param = engineering_params(Lasso, params_map)
+#%%
 mdl_rfc = RandomForestClassifier(n_estimators=100, criterion='entropy')
 mdl_xgb = XGBClassifier(**xbg_param)
-mdl_enet = ElasticNet()
-mdl_lasso = Lasso()
+mdl_enet = ElasticNet(**enet_param)
+mdl_lasso = Lasso(**lasso_param)
 
 mdl_stacking = StackingClassifer([mdl_xgb, mdl_enet, mdl_lasso], mdl_rfc)
 
