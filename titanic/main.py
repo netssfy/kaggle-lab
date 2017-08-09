@@ -2,6 +2,7 @@
 
 #%%
 import copy
+import re
 import numpy as np
 import pandas as pd
 import sklearn as skl
@@ -27,9 +28,16 @@ trainY = trainData['Survived']
 trainData = trainData.drop('Survived', axis=1)
 X = pd.concat([trainData, testData])
 
-X = X.drop(['PassengerId', 'Name', 'Ticket', 'Cabin'], axis=1)
+X = X.drop([], axis=1)
 
-X['Family'] = X['SibSp'] + X['Parch']
+def get_title(name):
+	title_search = re.search(' ([A-Za-z]+)\.', name)
+	# If the title exists, extract and return it.
+	if title_search:
+		return title_search.group(1)
+	return ''
+
+X['Family'] = X['SibSp'] + X['Parch'] + 1
 X['Embarked'] = X['Embarked'].fillna(X['Embarked'].mode()[0])
 
 X['Fare'] = X['Fare'].fillna(X['Fare'].median())
@@ -37,12 +45,32 @@ X['Age'] = X['Age'].fillna(X['Age'].median())
 
 X['Pclass'] = X['Pclass'].apply(str)
 
+X['Age2'] = X['Age'] ** 2
+X['SibSp2'] = X['SibSp'] ** 2
+X['Family2'] = X['Family'] ** 2
+X['Fare2'] = X['Fare'] ** 2
+
+X['Age3'] = X['Age'] ** 3
+X['SibSp3'] = X['SibSp'] ** 3
+X['Family3'] = X['Family'] ** 3
+X['Fare3'] = X['Fare'] ** 3
+
+X['Title'] = X['Name'].apply(get_title)
+X['Title'] = X['Title'].replace(['Lady', 'Countess','Capt', 'Col',\
+'Don', 'Dr', 'Major', 'Rev', 'Sir', 'Jonkheer', 'Dona'], 'Rare')
+
+X['Title'] = X['Title'].replace('Mlle', 'Miss')
+X['Title'] = X['Title'].replace('Ms', 'Miss')
+X['Title'] = X['Title'].replace('Mme', 'Mrs')
+
+X = X.drop(['Name', 'PassengerId', 'Ticket', 'Cabin'], axis=1)
+
 X = pd.get_dummies(X)
 
 trainX = X[:length]
 testX = X[length:]
 
-trainX.info()
+trainX.head()
 
 class StackingClassifer:
     def __init__(self, base_models, meta_model, folds=5):
@@ -89,11 +117,20 @@ class StackingClassifer:
 
         return self.current_meta_model.predict(inter_pred)
 
+    def score(self, X, Y):
+        pred_y = self.predict(X)
+        return (pred_y == Y).sum() / (float)(Y.shape[0])
+
 def engineering_params(Model, params_map, orthogonal=False):
+    print '*' * 20
     folds = KFold(n_splits=3)
     best_param = {}
     for param_name in params_map:
         param_values = params_map[param_name]
+        if len(param_values) == 1:
+            best_param[param_name] = param_values[0]
+            continue
+
         tmp = Model()
         print 'select best {} for model {}'.format(param_name, tmp.__class__.__name__)
 
@@ -111,39 +148,57 @@ def engineering_params(Model, params_map, orthogonal=False):
                 best_param[param_name] = value
     
     print 'best param {} at score '.format(best_param)
+    print '*' * 20
     return best_param
 #%%
 #XGB参数调优
 params_map = {
-    'max_depth': [3, 5, 7, 10],
-    'learning_rate': [0.01, 0.03, 0.1, 0.3, 1],
-    'gamma': [0, 0.01, 0.03, 0.1, 0.3, 1],
-    'min_child_weight': [1, 3, 5, 7],
-    'max_delta_step': [0, 1, 2, 3],
-    'reg_alpha': [0, 0.01, 0.03, 0.1, 0.3, 1],
-    'reg_lambda': [0, 0.01, 0.03, 0.1, 0.3, 1],
-    'scale_pos_weight': [0, 0.01, 0.03, 0.1, 0.3, 1],
-    'base_score': [0.1, 0.3, 0.5, 0.7, 0.9]
+    'max_depth': [2],
+    'learning_rate': [0.35],
+    'min_child_weight': [6],
+    'max_delta_step': [2],
+    'base_score': [0.88]
 }
 
 xbg_param = engineering_params(XGBClassifier, params_map)
 
+#MLPClassifier参数调优
+params_map = {
+    'alpha': [0.0045],
+    'learning_rate_init': [0.6],
+    'power_t': [0.78],
+    'max_iter': [200],
+    'beta_1': [0.23]
+}
+
+mlp_param = engineering_params(MLPClassifier, params_map)
+
+#svc参数调优
+params_map = {
+    'C': [0.075],
+    'cache_size': [200]
+}
+
+svc_param = engineering_params(SVC, params_map)
 #%%
 mdl_rfc = RandomForestClassifier(n_estimators=100, criterion='entropy')
 mdl_xgb = XGBClassifier(**xbg_param)
-mdl_enet = ElasticNet(**enet_param)
-mdl_lasso = Lasso(**lasso_param)
+mdl_mlp = MLPClassifier(**mlp_param)
+mdl_svc = SVC(**svc_param)
 
-mdl_stacking = StackingClassifer([mdl_enet, mdl_lasso, mdl_rfc], mdl_xgb)
+mdl_stacking = StackingClassifer([mdl_mlp, mdl_svc, mdl_rfc], mdl_xgb)
 
-mdl_stacking.fit(trainX, trainY)
-mdl_stacking_pred = mdl_stacking.predict(testX)
-print mdl_stacking_pred
-# print mdl_rfc.score(trainX, trainY)
+mdl = mdl_stacking
+
+mdl.fit(trainX, trainY)
+print 'test shape = {}'.format(testX.shape)
+mdl_pred = mdl.predict(testX)
+
+print 'score = {}'.format(mdl.score(trainX, trainY))
 
 result = pd.DataFrame({
     'PassengerId': testId,
-    'Survived': mdl_stacking_pred
+    'Survived': mdl_pred
 })
 
 result.to_csv('./titanic/submission/result.csv', index=False)
