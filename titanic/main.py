@@ -8,14 +8,15 @@ import pandas as pd
 import sklearn as skl
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import KFold, cross_val_score
+from sklearn.ensemble import RandomForestClassifier, VotingClassifier, ExtraTreesClassifier, AdaBoostClassifier
+from sklearn.model_selection import KFold, cross_val_score, GridSearchCV
 from sklearn.neural_network import MLPClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import RBF
 from xgboost.sklearn import XGBClassifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.base import clone
 
 trainData = pd.read_csv('./titanic/train.csv')
@@ -147,7 +148,7 @@ def engineering_params(Model, params_map, orthogonal=False):
                 best_score = score
                 best_param[param_name] = value
     
-    print 'best param {} at score '.format(best_param)
+    print 'best param {}'.format(best_param)
     print '*' * 20
     return best_param
 #%%
@@ -162,16 +163,14 @@ params_map = {
 
 xbg_param = engineering_params(XGBClassifier, params_map)
 
-#MLPClassifier参数调优
+#KNeighborsClassifier参数调优
 params_map = {
-    'alpha': [0.0045],
-    'learning_rate_init': [0.6],
-    'power_t': [0.78],
-    'max_iter': [200],
-    'beta_1': [0.23]
+    'n_neighbors': [7],
+    'leaf_size': [5],
+    'p': [4]
 }
 
-mlp_param = engineering_params(MLPClassifier, params_map)
+knn_param = engineering_params(KNeighborsClassifier, params_map)
 
 #svc参数调优
 params_map = {
@@ -180,15 +179,48 @@ params_map = {
 }
 
 svc_param = engineering_params(SVC, params_map)
+
+ExtC = ExtraTreesClassifier()
+params_map = {
+    'max_depth': [None],
+    'max_features': [1, 3, 10],
+    'min_samples_split': [2, 3, 10],
+    'min_samples_leaf': [1, 3, 10],
+    'bootstrap': [False],
+    'n_estimators' :[100,300],
+    'criterion': ['gini']
+}
+
+gsExtC = GridSearchCV(ExtC, param_grid = params_map, cv=KFold(n_splits=3), scoring='accuracy', n_jobs= 4, verbose = 1)
+gsExtC.fit(trainX, trainY)
+extc_param = gsExtC.best_params_
+print 'extc best param {} at score '.format(extc_param)
+
+DTC = DecisionTreeClassifier()
+adaDTC = AdaBoostClassifier(DTC, random_state=7)
+params_map = {
+    'base_estimator__criterion' : ['gini', 'entropy'],
+    'base_estimator__splitter' :   ['best', 'random'],
+    'algorithm' : ['SAMME','SAMME.R'],
+    'n_estimators' :[1,2],
+    'learning_rate':  [0.0001, 0.001, 0.01, 0.1, 0.2, 0.3,1.5]
+}
+
+gsadaDTC = GridSearchCV(adaDTC,param_grid = params_map, cv=KFold(n_splits=3), scoring='accuracy', n_jobs= 4, verbose = 1)
+gsadaDTC.fit(trainX, trainY)
+ada_param = gsadaDTC.best_estimator_
+print 'ada best param {} at score '.format(ada_param)
 #%%
 mdl_rfc = RandomForestClassifier(n_estimators=100, criterion='entropy')
 mdl_xgb = XGBClassifier(**xbg_param)
-mdl_mlp = MLPClassifier(**mlp_param)
+mdl_knn = KNeighborsClassifier(**knn_param)
 mdl_svc = SVC(**svc_param)
+mdl_extc = gsExtC.best_estimator_
+mdl_ada = gsadaDTC.best_estimator_
 
-mdl_stacking = StackingClassifer([mdl_mlp, mdl_svc, mdl_rfc], mdl_xgb)
-
-mdl = mdl_stacking
+mdl_voting = VotingClassifier([('rfc', mdl_rfc), ('xgb', mdl_xgb), ('extc', mdl_extc), ('ada', mdl_ada)])
+mdl_stacking = StackingClassifer([mdl_extc, mdl_xgb, mdl_rfc], mdl_ada)
+mdl = mdl_voting
 
 mdl.fit(trainX, trainY)
 print 'test shape = {}'.format(testX.shape)
