@@ -9,8 +9,13 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import KFold, cross_val_score
-from sklearn.linear_model import ElasticNet, Lasso
+from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF
 from xgboost.sklearn import XGBClassifier
+from sklearn.base import clone
 
 trainData = pd.read_csv('./titanic/train.csv')
 testData = pd.read_csv('./titanic/test.csv')
@@ -30,14 +35,15 @@ X['Embarked'] = X['Embarked'].fillna(X['Embarked'].mode()[0])
 X['Fare'] = X['Fare'].fillna(X['Fare'].median())
 X['Age'] = X['Age'].fillna(X['Age'].median())
 
+X['Pclass'] = X['Pclass'].apply(str)
+
 X = pd.get_dummies(X)
 
 trainX = X[:length]
 testX = X[length:]
 
 trainX.info()
-#%%
-from sklearn.base import clone
+
 class StackingClassifer:
     def __init__(self, base_models, meta_model, folds=5):
         self.base_models = base_models
@@ -82,7 +88,7 @@ class StackingClassifer:
             inter_pred[:, i] = preds
 
         return self.current_meta_model.predict(inter_pred)
-#%%
+
 def engineering_params(Model, params_map, orthogonal=False):
     folds = KFold(n_splits=3)
     best_param = {}
@@ -95,7 +101,7 @@ def engineering_params(Model, params_map, orthogonal=False):
         if not orthogonal:
             kwparam = copy.copy(best_param)
         
-        best_score = 0;
+        best_score = 0
         for value in param_values:
             kwparam[param_name] = value
             mdl_temp = Model(**kwparam)
@@ -121,35 +127,18 @@ params_map = {
 }
 
 xbg_param = engineering_params(XGBClassifier, params_map)
-#%%
-#ElasticNet参数调优
-params_map = {
-    'alpha': [0.1, 0.3, 1, 1.3, 2.1, 3],
-    'l1_ratio': [0.1, 0.3, 0.5, 0.8, 1],
-    'max_iter': [800, 1000, 1300]
-}
 
-enet_param = engineering_params(ElasticNet, params_map)
-
-#%%
-#Lasso参数调优
-params_map = {
-    'alpha': [0.1, 0.3, 1, 1.3, 2.1, 3],
-    'max_iter': [800, 1000, 1300]
-}
-
-lasso_param = engineering_params(Lasso, params_map)
 #%%
 mdl_rfc = RandomForestClassifier(n_estimators=100, criterion='entropy')
 mdl_xgb = XGBClassifier(**xbg_param)
 mdl_enet = ElasticNet(**enet_param)
 mdl_lasso = Lasso(**lasso_param)
 
-mdl_stacking = StackingClassifer([mdl_xgb, mdl_enet, mdl_lasso], mdl_rfc)
+mdl_stacking = StackingClassifer([mdl_enet, mdl_lasso, mdl_rfc], mdl_xgb)
 
 mdl_stacking.fit(trainX, trainY)
 mdl_stacking_pred = mdl_stacking.predict(testX)
-
+print mdl_stacking_pred
 # print mdl_rfc.score(trainX, trainY)
 
 result = pd.DataFrame({
