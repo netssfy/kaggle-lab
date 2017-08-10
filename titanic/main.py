@@ -38,35 +38,157 @@ def get_title(name):
 		return title_search.group(1)
 	return ''
 
-X['Family'] = X['SibSp'] + X['Parch'] + 1
-X['Embarked'] = X['Embarked'].fillna(X['Embarked'].mode()[0])
+def substrings_in_string(big_string, substrings):
+    for substring in substrings:
+        if big_string.find(substring) != -1:
+            return substring
+    print (big_string)
+    return np.nan
 
-X['Fare'] = X['Fare'].fillna(X['Fare'].median())
-X['Age'] = X['Age'].fillna(X['Age'].median())
+def clean_and_munge_data(df):
+    le = LabelEncoder()
+    df.Fare = df.Fare.map(lambda x: np.nan if x==0 else x)
+    #title list 
+    title_list=['Mrs', 'Mr', 'Master', 'Miss', 'Major', 'Rev',
+                'Dr', 'Ms', 'Mlle','Col', 'Capt', 'Mme', 'Countess',
+                'Don', 'Jonkheer']
+    df['Title']=df['Name'].map(lambda x: substrings_in_string(x, title_list))
+    
+    #replace mapped title into different catogories 
+    def replace_titles(x):
+        title=x['Title']
+        if title in ['Mr','Don', 'Major', 'Capt', 'Jonkheer', 'Rev', 'Col']:
+            return 'Mr'
+        elif title in ['Master']:
+            return 'Master'
+        elif title in ['Countess', 'Mme','Mrs']:
+            return 'Mrs'
+        elif title in ['Mlle', 'Ms','Miss']:
+            return 'Miss'
+        elif title =='Dr':
+            if x['Sex']=='Male':
+                return 'Mr'
+            else:
+                return 'Mrs'
+        elif title =='':
+            if x['Sex']=='Male':
+                return 'Master'
+            else:
+                return 'Miss'
+        else:
+            return title
+    
+    #new feature title 
+    df['Title']=df.apply(replace_titles, axis=1)
 
-X['Pclass'] = X['Pclass'].apply(str)
+    #new feature family size
+    df['Family_Size']=df['SibSp']+df['Parch']
+    df['Family']=df['SibSp']*df['Parch']
 
-X['Age2'] = X['Age'] ** 2
-X['SibSp2'] = X['SibSp'] ** 2
-X['Family2'] = X['Family'] ** 2
-X['Fare2'] = X['Fare'] ** 2
+    #Handling missing value in Fare 
+    #fill in missing fare with median value based on which class they are 
+    df.loc[ (df.Fare.isnull())&(df.Pclass==1),'Fare'] =np.median(df[df['Pclass'] == 1]['Fare'].dropna())
+    df.loc[ (df.Fare.isnull())&(df.Pclass==2),'Fare'] =np.median( df[df['Pclass'] == 2]['Fare'].dropna())
+    df.loc[ (df.Fare.isnull())&(df.Pclass==3),'Fare'] = np.median(df[df['Pclass'] == 3]['Fare'].dropna())
+    
+    #mapping set to gender 
+    df['Gender'] = df['Sex'].map( {'female': 0, 'male': 1} ).astype(int)
+    
+    #fill age with mean age base on different title 
+    df['AgeFill']=df['Age']
+    mean_ages = np.zeros(4)
+    mean_ages[0]=np.average(df[df['Title'] == 'Miss']['Age'].dropna())
+    mean_ages[1]=np.average(df[df['Title'] == 'Mrs']['Age'].dropna())
+    mean_ages[2]=np.average(df[df['Title'] == 'Mr']['Age'].dropna())
+    mean_ages[3]=np.average(df[df['Title'] == 'Master']['Age'].dropna())
+    df.loc[ (df.Age.isnull()) & (df.Title == 'Miss') ,'AgeFill'] = mean_ages[0]
+    df.loc[ (df.Age.isnull()) & (df.Title == 'Mrs') ,'AgeFill'] = mean_ages[1]
+    df.loc[ (df.Age.isnull()) & (df.Title == 'Mr') ,'AgeFill'] = mean_ages[2]
+    df.loc[ (df.Age.isnull()) & (df.Title == 'Master') ,'AgeFill'] = mean_ages[3]
+    
+    #new feature age category 
+    #better to transform continuse age value into different age bin 
+    df['AgeCat']=df['AgeFill']
+    df.loc[ (df.AgeFill<=10) ,'AgeCat'] = 'child'
+    df.loc[ (df.AgeFill>60),'AgeCat'] = 'aged'
+    df.loc[ (df.AgeFill>10) & (df.AgeFill <=30) ,'AgeCat'] = 'adult'
+    df.loc[ (df.AgeFill>30) & (df.AgeFill <=60) ,'AgeCat'] = 'senior'
 
-X['Age3'] = X['Age'] ** 3
-X['SibSp3'] = X['SibSp'] ** 3
-X['Family3'] = X['Family'] ** 3
-X['Fare3'] = X['Fare'] ** 3
+    df.Embarked = df.Embarked.fillna('S')
 
-X['Title'] = X['Name'].apply(get_title)
-X['Title'] = X['Title'].replace(['Lady', 'Countess','Capt', 'Col',\
-'Don', 'Dr', 'Major', 'Rev', 'Sir', 'Jonkheer', 'Dona'], 'Rare')
+    df.loc[ df.Cabin.isnull()==True,'Cabin'] = 0.5
+    df.loc[ df.Cabin.isnull()==False,'Cabin'] = 1.5
 
-X['Title'] = X['Title'].replace('Mlle', 'Miss')
-X['Title'] = X['Title'].replace('Ms', 'Miss')
-X['Title'] = X['Title'].replace('Mme', 'Mrs')
+    df['Fare_Per_Person']=df['Fare']/(df['Family_Size']+1)
 
-X = X.drop(['Name', 'PassengerId', 'Ticket', 'Cabin'], axis=1)
+    #new feature based on two highly relevant feature age and pclass 
+    #create new features 
+    df['AgeClass']=df['AgeFill']*df['Pclass']
+    df['ClassFare']=df['Pclass']*df['Fare_Per_Person']
 
-X = pd.get_dummies(X)
+    
+    df['HighLow']=df['Pclass']
+    df.loc[ (df.Fare_Per_Person<8) ,'HighLow'] = 'Low'
+    df.loc[ (df.Fare_Per_Person>=8) ,'HighLow'] = 'High'
+
+    le.fit(df['Sex'] )
+    x_sex=le.transform(df['Sex'])
+    df['Sex']=x_sex.astype(np.float)
+
+    le.fit( df['Ticket'])
+    x_Ticket=le.transform( df['Ticket'])
+    df['Ticket']=x_Ticket.astype(np.float)
+
+    le.fit(df['Title'])
+    x_title=le.transform(df['Title'])
+    df['Title'] =x_title.astype(np.float)
+
+    le.fit(df['HighLow'])
+    x_hl=le.transform(df['HighLow'])
+    df['HighLow']=x_hl.astype(np.float)
+
+    le.fit(df['AgeCat'])
+    x_age=le.transform(df['AgeCat'])
+    df['AgeCat'] =x_age.astype(np.float)
+
+    le.fit(df['Embarked'])
+    x_emb=le.transform(df['Embarked'])
+    df['Embarked']=x_emb.astype(np.float)
+
+    df = df.drop(['PassengerId','Name','Age','Cabin'], axis=1) #remove Name,Age and PassengerId
+    return df
+
+# X['Family'] = X['SibSp'] + X['Parch'] + 1
+# X['Embarked'] = X['Embarked'].fillna(X['Embarked'].mode()[0])
+
+# X['Fare'] = X['Fare'].fillna(X['Fare'].median())
+# X['Age'] = X['Age'].fillna(X['Age'].median())
+
+# X['Pclass'] = X['Pclass'].apply(str)
+
+# X['Age2'] = X['Age'] ** 2
+# X['SibSp2'] = X['SibSp'] ** 2
+# X['Family2'] = X['Family'] ** 2
+# X['Fare2'] = X['Fare'] ** 2
+
+# X['Age3'] = X['Age'] ** 3
+# X['SibSp3'] = X['SibSp'] ** 3
+# X['Family3'] = X['Family'] ** 3
+# X['Fare3'] = X['Fare'] ** 3
+
+# X['Title'] = X['Name'].apply(get_title)
+# X['Title'] = X['Title'].replace(['Lady', 'Countess','Capt', 'Col',\
+# 'Don', 'Dr', 'Major', 'Rev', 'Sir', 'Jonkheer', 'Dona'], 'Rare')
+
+# X['Title'] = X['Title'].replace('Mlle', 'Miss')
+# X['Title'] = X['Title'].replace('Ms', 'Miss')
+# X['Title'] = X['Title'].replace('Mme', 'Mrs')
+
+# X = X.drop(['Name', 'PassengerId', 'Ticket', 'Cabin'], axis=1)
+
+# X = pd.get_dummies(X)
+
+X = clean_and_munge_data(X)
 
 trainX = X[:length]
 testX = X[length:]
